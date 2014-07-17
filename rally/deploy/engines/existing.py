@@ -31,7 +31,7 @@ class ExistingCloud(engine.EngineFactory):
                     "password": "password",
                     "tenant_name": "demo",
                     "region_name": "RegionOne",
-                    "use_public_urls": True,
+                    "use_public_urls": False,
                     "keystone_admin_port": 35357
                 }
             }
@@ -73,7 +73,7 @@ class ExistingCloud(engine.EngineFactory):
                                           consts.EndpointPermission.ADMIN,
                                           endpoint_dict.get('region_name'),
                                           endpoint_dict.get('use_public_urls',
-                                                            True),
+                                                            False),
                                           endpoint_dict.get('admin_port',
                                                             35357))
         return [admin_endpoint]

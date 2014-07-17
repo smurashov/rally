@@ -54,10 +54,9 @@ class PeriodicScenarioRunnerTestCase(test.TestCase):
         runner = periodic.PeriodicScenarioRunner(
                         None, [context["admin"]["endpoint"]], config)
 
-        runner._run_scenario(fakes.FakeScenario, "do_it", context, {})
-        self.assertEqual(len(runner.result_queue), config["times"])
-        for result in runner.result_queue:
-            self.assertIsNotNone(base.ScenarioRunnerResult(result))
+        result = runner._run_scenario(fakes.FakeScenario, "do_it", context, {})
+        self.assertEqual(len(result), config["times"])
+        self.assertIsNotNone(base.ScenarioRunnerResult(result))
 
     def test_run_scenario_exception(self):
         context = fakes.FakeUserContext({}).context
@@ -67,11 +66,10 @@ class PeriodicScenarioRunnerTestCase(test.TestCase):
         runner = periodic.PeriodicScenarioRunner(
                         None, [context["admin"]["endpoint"]], config)
 
-        runner._run_scenario(fakes.FakeScenario,
-                             "something_went_wrong", context, {})
-        self.assertEqual(len(runner.result_queue), config["times"])
-        for result in runner.result_queue:
-            self.assertIsNotNone(base.ScenarioRunnerResult(result))
+        result = runner._run_scenario(fakes.FakeScenario,
+                                      "something_went_wrong", context, {})
+        self.assertEqual(len(result), config["times"])
+        self.assertIsNotNone(base.ScenarioRunnerResult(result))
 
     @mock.patch("rally.benchmark.runners.periodic.base.ScenarioRunnerResult")
     @mock.patch("rally.benchmark.runners.periodic.multiprocessing")

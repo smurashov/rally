@@ -94,7 +94,7 @@ class NovaServersTestCase(test.TestCase):
                                                       actions=actions)
         server_calls = []
         for i in range(5):
-            server_calls.append(mock.call(fake_server))
+            server_calls.append(mock.call(fake_server, soft=False))
         self.assertEqual(5, scenario._reboot_server.call_count,
                          "Reboot not called 5 times")
         scenario._reboot_server.assert_has_calls(server_calls)
@@ -136,7 +136,6 @@ class NovaServersTestCase(test.TestCase):
         scenario = servers.NovaServers()
 
         scenario._reboot_server = mock.MagicMock()
-        scenario._soft_reboot_server = mock.MagicMock()
         scenario._boot_server = mock.MagicMock(return_value=fake_server)
         scenario._delete_server = mock.MagicMock()
         scenario._generate_random_name = mock.MagicMock(return_value='name')
@@ -147,15 +146,10 @@ class NovaServersTestCase(test.TestCase):
                                                       actions=actions)
         server_calls = []
         for i in range(5):
-            server_calls.append(mock.call(fake_server))
-        if soft:
-            self.assertEqual(5, scenario._soft_reboot_server.call_count,
-                             "Reboot not called 5 times")
-            scenario._soft_reboot_server.assert_has_calls(server_calls)
-        else:
-            self.assertEqual(5, scenario._reboot_server.call_count,
-                             "Reboot not called 5 times")
-            scenario._reboot_server.assert_has_calls(server_calls)
+            server_calls.append(mock.call(fake_server, soft=soft))
+        self.assertEqual(5, scenario._reboot_server.call_count,
+                         "Reboot not called 5 times")
+        scenario._reboot_server.assert_has_calls(server_calls)
         scenario._delete_server.assert_called_once_with(fake_server)
 
     def test_boot_soft_reboot(self):
@@ -250,10 +244,10 @@ class NovaServersTestCase(test.TestCase):
     @mock.patch("rally.benchmark.scenarios.nova.servers.random.choice")
     def _verify_boot_server(self, mock_choice, mock_osclients, nic=None,
                             assert_nic=False):
-        scenario, kwargs, expected_kwargs = self._prepare_boot(
-            mock_osclients=mock_osclients,
-            mock_choice=mock_choice,
-            nic=nic, assert_nic=assert_nic)
+        scenario, kwargs, expected_kwargs = \
+            self._prepare_boot(mock_osclients=mock_osclients,
+                               mock_choice=mock_choice,
+                               nic=nic, assert_nic=assert_nic)
 
         scenario.boot_server("img", 0, **kwargs)
         scenario._boot_server.assert_called_once_with("name", "img", 0,
@@ -283,10 +277,10 @@ class NovaServersTestCase(test.TestCase):
     def test_boot_server_from_volume_random_nic(self, mock_choice,
                                                 mock_osclients,
                                                 mock_nova_clients):
-        scenario, kwargs, expected_kwargs = self._prepare_boot(
-            mock_osclients=mock_osclients,
-            mock_choice=mock_choice,
-            nic=None, assert_nic=True)
+        scenario, kwargs, expected_kwargs = \
+            self._prepare_boot(mock_osclients=mock_osclients,
+                               mock_choice=mock_choice,
+                               nic=None, assert_nic=True)
 
         fake_volume = fakes.FakeVolumeManager().create()
         fake_volume.id = "volume_id"

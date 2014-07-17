@@ -17,6 +17,7 @@ import multiprocessing
 import time
 
 from rally.benchmark.runners import base
+from rally.benchmark import utils
 from rally import consts
 from rally import utils as rutils
 
@@ -84,13 +85,16 @@ class PeriodicScenarioRunner(base.ScenarioRunner):
             if i < times - 1:
                 time.sleep(period)
 
+        results = []
         for async_result in async_results:
             try:
                 result = async_result.get(timeout=timeout)
             except multiprocessing.TimeoutError as e:
-                result = base.format_result_on_timeout(e, timeout)
-
-            self._send_result(result)
+                result = {"duration": timeout, "idle_duration": 0,
+                          "error": utils.format_exc(e)}
+            results.append(result)
 
         for pool in pools:
             pool.join()
+
+        return base.ScenarioRunnerResult(results)

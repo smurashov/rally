@@ -16,9 +16,7 @@
 from rally.benchmark.scenarios import base
 from rally.benchmark.scenarios.glance import utils
 from rally.benchmark.scenarios.nova import utils as nova_utils
-from rally.benchmark import types as types
 from rally.benchmark import validation
-from rally import consts
 
 
 class GlanceImages(utils.GlanceScenario, nova_utils.NovaScenario):
@@ -27,7 +25,6 @@ class GlanceImages(utils.GlanceScenario, nova_utils.NovaScenario):
     RESOURCE_NAME_LENGTH = 16
 
     @base.scenario(context={"cleanup": ["glance"]})
-    @validation.required_services(consts.Service.GLANCE)
     def create_and_list_image(self, container_format,
                               image_location, disk_format, **kwargs):
         """Test adding an image and then listing all images.
@@ -49,22 +46,6 @@ class GlanceImages(utils.GlanceScenario, nova_utils.NovaScenario):
         self._list_images()
 
     @base.scenario(context={"cleanup": ["glance"]})
-    @validation.required_services(consts.Service.GLANCE)
-    def list_images(self):
-        """Test the glance image-list command.
-
-        This simple scenario tests the glance image-list command by listing
-        all the images.
-
-        Suppose if we have 2 users in context and each has 2 images
-        uploaded for them we will be able to test the performance of
-        glance image-list command in this case.
-        """
-
-        self._list_images()
-
-    @base.scenario(context={"cleanup": ["glance"]})
-    @validation.required_services(consts.Service.GLANCE)
     def create_and_delete_image(self, container_format,
                                 image_location, disk_format, **kwargs):
         """Test adds and then deletes image."""
@@ -76,13 +57,11 @@ class GlanceImages(utils.GlanceScenario, nova_utils.NovaScenario):
                                    **kwargs)
         self._delete_image(image)
 
-    @types.set(flavor=types.FlavorResourceType)
-    @validation.add(validation.flavor_exists("flavor"))
-    @validation.required_services(consts.Service.GLANCE, consts.Service.NOVA)
+    @validation.add_validator(validation.flavor_exists("flavor_id"))
     @base.scenario(context={"cleanup": ["glance", "nova"]})
     def create_image_and_boot_instances(self, container_format,
                                         image_location, disk_format,
-                                        flavor, number_instances,
+                                        flavor_id, number_instances,
                                         **kwargs):
         """Test adds image, boots instance from it and then deletes them."""
         image_name = self._generate_random_name()
@@ -94,4 +73,4 @@ class GlanceImages(utils.GlanceScenario, nova_utils.NovaScenario):
         image_id = image.id
         server_name = self._generate_random_name(prefix="rally_novaserver_")
         self._boot_servers(server_name, image_id,
-                           flavor, number_instances, **kwargs)
+                           flavor_id, number_instances, **kwargs)

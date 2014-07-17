@@ -13,11 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from keystoneclient import exceptions as keystone_exceptions
 import mock
+
+from keystoneclient import exceptions as keystone_exceptions
 from oslo.config import cfg
 
-from rally import consts
 from rally import exceptions
 from rally.objects import endpoint
 from rally import osclients
@@ -49,8 +49,8 @@ class OSClientsTestCase(test.TestCase):
     @mock.patch("rally.osclients.Clients.keystone")
     def test_verified_keystone_user_not_admin(self, mock_keystone):
         mock_keystone.return_value = fakes.FakeKeystoneClient()
-        mock_keystone.return_value.auth_ref["user"]["roles"] = [{"name":
-                                                                 "notadmin"}]
+        mock_keystone.return_value.auth_ref["user"]["roles"] = \
+            [{"name": "notadmin"}]
         self.assertRaises(exceptions.InvalidAdminException,
                           self.clients.verified_keystone)
 
@@ -181,18 +181,3 @@ class OSClientsTestCase(test.TestCase):
         }
         mock_ironic.Client.assert_called_once_with("1.0", **kw)
         self.assertEqual(self.clients.cache["ironic"], fake_ironic)
-
-    @mock.patch("rally.osclients.Clients.keystone")
-    def test_services(self, mock_keystone):
-        available_services = {consts.ServiceType.IDENTITY: {},
-                              consts.ServiceType.COMPUTE: {},
-                              'unknown_service': {}
-                              }
-        mock_keystone.return_value = mock.Mock(service_catalog=mock.Mock(
-                get_endpoints=lambda: available_services))
-        clients = osclients.Clients({})
-
-        self.assertEqual(
-            clients.services(), {
-                consts.ServiceType.IDENTITY: consts.Service.KEYSTONE,
-                consts.ServiceType.COMPUTE: consts.Service.NOVA})

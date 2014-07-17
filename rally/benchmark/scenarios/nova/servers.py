@@ -13,17 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import random
-
 import jsonschema
+import random
 
 from rally.benchmark.scenarios import base
 from rally.benchmark.scenarios.cinder import utils as cinder_utils
 from rally.benchmark.scenarios.nova import utils
 from rally.benchmark.scenarios import utils as scenario_utils
-from rally.benchmark import types as types
-from rally.benchmark import validation
-from rally import consts
+from rally.benchmark import validation as valid
 from rally import exceptions as rally_exceptions
 from rally.openstack.common.gettextutils import _  # noqa
 from rally.openstack.common import log as logging
@@ -41,12 +38,9 @@ class NovaServers(utils.NovaScenario,
     def __init__(self, *args, **kwargs):
         super(NovaServers, self).__init__(*args, **kwargs)
 
-    @types.set(image=types.ImageResourceType,
-               flavor=types.FlavorResourceType)
-    @validation.add(validation.image_valid_on_flavor("flavor", "image"))
+    @valid.add_validator(valid.image_valid_on_flavor("flavor_id", "image_id"))
     @base.scenario(context={"cleanup": ["nova"]})
-    @validation.required_services(consts.Service.NOVA)
-    def boot_and_list_server(self, image, flavor,
+    def boot_and_list_server(self, image_id, flavor_id,
                              detailed=True, **kwargs):
         """Tests booting an image and then listing servers.
 
@@ -60,51 +54,39 @@ class NovaServers(utils.NovaScenario,
            the number of servers owned by users.
         """
         self._boot_server(
-            self._generate_random_name(), image, flavor, **kwargs)
+            self._generate_random_name(), image_id, flavor_id, **kwargs)
         self._list_servers(detailed)
 
-    @types.set(image=types.ImageResourceType,
-               flavor=types.FlavorResourceType)
-    @validation.add(validation.image_valid_on_flavor("flavor", "image"))
+    @valid.add_validator(valid.image_valid_on_flavor("flavor_id", "image_id"))
     @base.scenario(context={"cleanup": ["nova"]})
-    @validation.required_services(consts.Service.NOVA)
-    def boot_and_delete_server(self, image, flavor,
+    def boot_and_delete_server(self, image_id, flavor_id,
                                min_sleep=0, max_sleep=0, **kwargs):
         """Tests booting and then deleting an image."""
         server = self._boot_server(
-            self._generate_random_name(), image, flavor, **kwargs)
+            self._generate_random_name(), image_id, flavor_id, **kwargs)
         self.sleep_between(min_sleep, max_sleep)
         self._delete_server(server)
 
-    @types.set(image=types.ImageResourceType,
-               flavor=types.FlavorResourceType)
-    @validation.add(validation.image_valid_on_flavor("flavor", "image"))
+    @valid.add_validator(valid.image_valid_on_flavor("flavor_id", "image_id"))
     @base.scenario(context={"cleanup": ["nova", "cinder"]})
-    @validation.required_services(consts.Service.NOVA, consts.Service.CINDER)
-    def boot_server_from_volume_and_delete(self, image, flavor,
+    def boot_server_from_volume_and_delete(self, image_id, flavor_id,
                                            volume_size,
                                            min_sleep=0, max_sleep=0, **kwargs):
         """Tests booting from volume and then deleting an image and volume."""
-        volume = self._create_volume(volume_size, imageRef=image)
+        volume = self._create_volume(volume_size, imageRef=image_id)
         block_device_mapping = {'vda': '%s:::1' % volume.id}
         server = self._boot_server(self._generate_random_name(),
-                                   image, flavor,
+                                   image_id, flavor_id,
                                    block_device_mapping=block_device_mapping,
                                    **kwargs)
         self.sleep_between(min_sleep, max_sleep)
         self._delete_server(server)
 
-    @types.set(image=types.ImageResourceType,
-               flavor=types.FlavorResourceType)
-    @validation.add(validation.image_valid_on_flavor("flavor", "image"))
+    @valid.add_validator(valid.image_valid_on_flavor("flavor_id", "image_id"))
     @base.scenario(context={"cleanup": ["nova"]})
-    @validation.required_services(consts.Service.NOVA)
-    def boot_and_bounce_server(self, image, flavor, **kwargs):
-        """Test booting a server with further performing specified actions.
-
-        Actions should be passed into kwargs. Available actions are
-        'hard_reboot', 'soft_reboot', 'stop_start' and 'rescue_unrescue'.
-        Delete server after all actions.
+    def boot_and_bounce_server(self, image_id, flavor_id, **kwargs):
+        """Tests booting a server then performing stop/start or hard/soft
+        reboot a number of times.
         """
         action_builder = self._bind_actions()
         actions = kwargs.get('actions', [])
@@ -115,34 +97,28 @@ class NovaServers(utils.NovaScenario,
                 "Invalid server actions configuration \'%(actions)s\' due to: "
                 "%(error)s" % {'actions': str(actions), 'error': str(error)})
         server = self._boot_server(self._generate_random_name(),
-                                   image, flavor, **kwargs)
+                                   image_id, flavor_id, **kwargs)
         for action in action_builder.build_actions(actions, server):
             action()
         self._delete_server(server)
 
-    @types.set(image=types.ImageResourceType,
-               flavor=types.FlavorResourceType)
-    @validation.add(validation.image_valid_on_flavor("flavor", "image"))
+    @valid.add_validator(valid.image_valid_on_flavor("flavor_id", "image_id"))
     @base.scenario(context={"cleanup": ["nova", "glance"]})
-    @validation.required_services(consts.Service.NOVA, consts.Service.GLANCE)
-    def snapshot_server(self, image, flavor, **kwargs):
+    def snapshot_server(self, image_id, flavor_id, **kwargs):
         """Tests Nova instance snapshotting."""
         server_name = self._generate_random_name()
 
-        server = self._boot_server(server_name, image, flavor, **kwargs)
+        server = self._boot_server(server_name, image_id, flavor_id, **kwargs)
         image = self._create_image(server)
         self._delete_server(server)
 
-        server = self._boot_server(server_name, image.id, flavor, **kwargs)
+        server = self._boot_server(server_name, image.id, flavor_id, **kwargs)
         self._delete_server(server)
         self._delete_image(image)
 
-    @types.set(image=types.ImageResourceType,
-               flavor=types.FlavorResourceType)
-    @validation.add(validation.image_valid_on_flavor("flavor", "image"))
+    @valid.add_validator(valid.image_valid_on_flavor("flavor_id", "image_id"))
     @base.scenario(context={"cleanup": ["nova"]})
-    @validation.required_services(consts.Service.NOVA)
-    def boot_server(self, image, flavor, **kwargs):
+    def boot_server(self, image_id, flavor_id, **kwargs):
         """Test VM boot - assumed clean-up is done elsewhere."""
         if 'nics' not in kwargs:
             nets = self.clients("nova").networks.list()
@@ -150,14 +126,11 @@ class NovaServers(utils.NovaScenario,
                 random_nic = random.choice(nets)
                 kwargs['nics'] = [{'net-id': random_nic.id}]
         self._boot_server(
-            self._generate_random_name(), image, flavor, **kwargs)
+            self._generate_random_name(), image_id, flavor_id, **kwargs)
 
-    @types.set(image=types.ImageResourceType,
-               flavor=types.FlavorResourceType)
-    @validation.add(validation.image_valid_on_flavor("flavor", "image"))
+    @valid.add_validator(valid.image_valid_on_flavor("flavor_id", "image_id"))
     @base.scenario(context={"cleanup": ["nova", "cinder"]})
-    @validation.required_services(consts.Service.NOVA, consts.Service.CINDER)
-    def boot_server_from_volume(self, image, flavor,
+    def boot_server_from_volume(self, image_id, flavor_id,
                                 volume_size, **kwargs):
         """Test VM boot from volume - assumed clean-up is done elsewhere."""
         if 'nics' not in kwargs:
@@ -165,10 +138,10 @@ class NovaServers(utils.NovaScenario,
             if nets:
                 random_nic = random.choice(nets)
                 kwargs['nics'] = [{'net-id': random_nic.id}]
-        volume = self._create_volume(volume_size, imageRef=image)
+        volume = self._create_volume(volume_size, imageRef=image_id)
         block_device_mapping = {'vda': '%s:::1' % volume.id}
         self._boot_server(self._generate_random_name(),
-                          image, flavor,
+                          image_id, flavor_id,
                           block_device_mapping=block_device_mapping,
                           **kwargs)
 
@@ -176,8 +149,10 @@ class NovaServers(utils.NovaScenario,
         actions = ['hard_reboot', 'soft_reboot', 'stop_start',
                    'rescue_unrescue']
         action_builder = scenario_utils.ActionBuilder(actions)
-        action_builder.bind_action('hard_reboot', self._reboot_server)
-        action_builder.bind_action('soft_reboot', self._soft_reboot_server)
+        action_builder.bind_action('hard_reboot', self._reboot_server,
+                                   soft=False)
+        action_builder.bind_action('soft_reboot', self._reboot_server,
+                                   soft=True)
         action_builder.bind_action('stop_start',
                                    self._stop_and_start_server)
         action_builder.bind_action('rescue_unrescue',
@@ -200,7 +175,6 @@ class NovaServers(utils.NovaScenario,
 
     def _rescue_and_unrescue_server(self, server):
         """Rescue and then unrescue the given server.
-
         A rescue will be issued on the given server upon which time
         this method will wait for the server to become 'RESCUE'.
         Once the server is RESCUE a unrescue will be issued and

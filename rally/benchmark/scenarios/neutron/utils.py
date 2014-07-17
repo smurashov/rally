@@ -13,111 +13,73 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import multiprocessing
-
-import netaddr
-
 from rally.benchmark.scenarios import base
 from rally.benchmark.scenarios import utils as scenario_utils
 
 
 class NeutronScenario(base.Scenario):
-    """This class should contain base operations for benchmarking neutron."""
+    """This class should contain base operations for benchmarking neutron,
+       most of them are creating/deleting resources.
+    """
 
     RESOURCE_NAME_PREFIX = "rally_net_"
     SUBNET_IP_VERSION = 4
-    SUBNET_CIDR_START = "1.1.0.0/30"
+    SUBNET_CIDR_PATTERN = "192.168.%d.0/24"
 
     _subnet_cidrs = {}
 
     @classmethod
     def _generate_subnet_cidr(cls, network_id):
-        """Generate next subnet CIDR for network, without IP overlapping.
-
-        :param network_id: str, network UUID for subnet
-        :returns: str, next available subnet CIDR
+        """Generates next subnet CIDR for given network,
+           without IP overlapping.
         """
-        with multiprocessing.Lock():
-            if network_id in cls._subnet_cidrs:
-                crnt_cidr = cls._subnet_cidrs[network_id]
-                cidr = str(netaddr.IPNetwork(crnt_cidr).next())
-            else:
-                cidr = str(netaddr.IPNetwork(cls.SUBNET_CIDR_START))
-        cls._subnet_cidrs[network_id] = cidr
-        return cidr
+        if network_id in cls._subnet_cidrs:
+            cidr_no = cls._subnet_cidrs[network_id]
+            if cidr_no > 255:
+                # NOTE(amaretskiy): consider whether max number of
+                #                   255 subnets per network is enough.
+                raise ValueError(
+                    "can not generate more than 255 subnets CIDRs "
+                    "per one network due to IP pattern limitation")
+        else:
+            cidr_no = 0
+
+        cls._subnet_cidrs[network_id] = cidr_no + 1
+        return cls.SUBNET_CIDR_PATTERN % cidr_no
 
     @scenario_utils.atomic_action_timer('neutron.create_network')
-    def _create_network(self, network_create_args):
-        """Create neutron network.
+    def _create_network(self, network_data):
+        """Creates neutron network.
 
-        :param network_create_args: dict, POST /v2.0/networks request options
+        :param network_data: options for API v2.0 networks POST request
         :returns: neutron network dict
         """
-        network_create_args.setdefault("name", self._generate_random_name())
-        return self.clients("neutron"
-                            ).create_network({"network": network_create_args})
+        network_data.setdefault("name", self._generate_random_name())
+        return self.clients("neutron").create_network({
+                "network": network_data})
 
     @scenario_utils.atomic_action_timer('neutron.list_networks')
     def _list_networks(self):
-        """Return user networks list."""
+        """Returns user networks list."""
         return self.clients("neutron").list_networks()['networks']
 
     @scenario_utils.atomic_action_timer('neutron.create_subnet')
-    def _create_subnet(self, network, subnet_create_args):
-        """Create neutron subnet.
+    def _create_subnet(self, network, subnet_data):
+        """Creates neutron subnet.
 
         :param network: neutron network dict
-        :param subnet_create_args: POST /v2.0/subnets request options
+        :param subnet_data: options for API v2.0 subnets POST request
         :returns: neutron subnet dict
         """
         network_id = network["network"]["id"]
-        subnet_create_args["network_id"] = network_id
-        subnet_create_args.setdefault(
-            "name", self._generate_random_name("rally_subnet_"))
-        subnet_create_args.setdefault(
-            "cidr", self._generate_subnet_cidr(network_id))
-        subnet_create_args.setdefault(
-            "ip_version", self.SUBNET_IP_VERSION)
+        subnet_data["network_id"] = network_id
+        subnet_data.setdefault("cidr",
+                               self._generate_subnet_cidr(network_id))
+        subnet_data.setdefault("ip_version", self.SUBNET_IP_VERSION)
 
-        return self.clients("neutron"
-                            ).create_subnet({"subnet": subnet_create_args})
+        return self.clients("neutron").create_subnet({"subnet": subnet_data})
 
     @scenario_utils.atomic_action_timer('neutron.list_subnets')
     def _list_subnets(self):
         """Returns user subnetworks list."""
         return self.clients("neutron").list_subnets()["subnets"]
-
-    @scenario_utils.atomic_action_timer('neutron.create_router')
-    def _create_router(self, router_create_args):
-        """Create neutron router.
-
-        :param router_create_args: POST /v2.0/routers request options
-        :returns: neutron router dict
-        """
-        router_create_args.setdefault(
-            "name", self._generate_random_name("rally_router_"))
-        return self.clients("neutron"
-                            ).create_router({"router": router_create_args})
-
-    @scenario_utils.atomic_action_timer('neutron.list_routers')
-    def _list_routers(self):
-        """Returns user routers list."""
-        return self.clients("neutron").list_routers()["routers"]
-
-    @scenario_utils.atomic_action_timer('neutron.create_port')
-    def _create_port(self, network, port_create_args):
-        """Create neutron port.
-
-        :param network: neutron network dict
-        :param port_create_args: POST /v2.0/ports request options
-        :returns: neutron port dict
-        """
-        port_create_args["network_id"] = network["network"]["id"]
-        port_create_args.setdefault(
-            "name", self._generate_random_name("rally_port_"))
-        return self.clients("neutron").create_port({"port": port_create_args})
-
-    @scenario_utils.atomic_action_timer('neutron.list_ports')
-    def _list_ports(self):
-        """Return user ports list."""
-        return self.clients("neutron").list_ports()["ports"]

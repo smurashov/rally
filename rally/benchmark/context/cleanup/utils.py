@@ -15,8 +15,6 @@
 
 import logging
 
-from neutronclient.common import exceptions as neutron_exceptions
-
 from rally.benchmark.scenarios.keystone import utils as kutils
 from rally.benchmark import utils as bench_utils
 
@@ -32,10 +30,6 @@ def delete_cinder_resources(cinder):
 
 def delete_glance_resources(glance, project_uuid):
     delete_images(glance, project_uuid)
-
-
-def delete_heat_resources(heat):
-    delete_stacks(heat)
 
 
 def delete_keystone_resources(keystone):
@@ -61,13 +55,6 @@ def delete_quotas(admin_clients, project_uuid):
     # TODO(yingjun): We need to add the cinder part for deleting
     #                quotas when the new cinderclient released.
     admin_clients.nova().quotas.delete(project_uuid)
-
-
-def delete_stacks(heat):
-    for stack in heat.stacks.list():
-        stack.delete()
-    _wait_for_list_statuses(heat.stacks, statuses=["DELETE_COMPLETE"],
-                            timeout=600, check_interval=3)
 
 
 def delete_volumes(cinder):
@@ -97,13 +84,6 @@ def delete_volume_backups(cinder):
 def delete_nova_resources(nova):
     delete_servers(nova)
     delete_keypairs(nova)
-    delete_secgroups(nova)
-
-
-def delete_secgroups(nova):
-    for secgroup in nova.security_groups.list():
-        if secgroup.name != "default":  # inc0: we shouldn't mess with default
-            secgroup.delete()
 
 
 def delete_servers(nova):
@@ -118,36 +98,21 @@ def delete_keypairs(nova):
     _wait_for_empty_list(nova.keypairs)
 
 
+def delete_neutron_networks(neutron, project_uuid):
+    for network in neutron.list_networks()['networks']:
+        if network['tenant_id'] == project_uuid:
+            neutron.delete_network(network['id'])
+
+
+def delete_neutron_subnets(neutron, project_uuid):
+    for subnet in neutron.list_subnets()['subnets']:
+        if subnet['tenant_id'] == project_uuid:
+            neutron.delete_subnet(subnet['id'])
+
+
 def delete_neutron_resources(neutron, project_uuid):
-    # Ports
-    for port in neutron.list_ports()["ports"]:
-        if port["tenant_id"] == project_uuid:
-
-            # Detach routers
-            for fip in port["fixed_ips"]:
-                neutron.remove_interface_router(
-                    port["device_id"], {
-                        "subnet_id": fip["subnet_id"]
-                    })
-            try:
-                neutron.delete_port(port["id"])
-            except neutron_exceptions.PortNotFoundClient:
-                # Port can be already auto-deleted, skip silently
-                pass
-    # Routers
-    for router in neutron.list_routers()["routers"]:
-        if router["tenant_id"] == project_uuid:
-                neutron.delete_router(router["id"])
-
-    # Subnets
-    for subnet in neutron.list_subnets()["subnets"]:
-        if subnet["tenant_id"] == project_uuid:
-            neutron.delete_subnet(subnet["id"])
-
-    # Networks
-    for network in neutron.list_networks()["networks"]:
-        if network["tenant_id"] == project_uuid:
-            neutron.delete_network(network["id"])
+    delete_neutron_subnets(neutron, project_uuid)
+    delete_neutron_networks(neutron, project_uuid)
 
 
 def delete_ceilometer_resources(ceilometer, project_uuid):
@@ -179,8 +144,7 @@ def _wait_for_list_statuses(mgr, statuses, list_query=None,
 
     def _list_statuses(mgr):
         for resource in mgr.list(**list_query):
-            status = bench_utils.get_status(resource)
-            if status not in statuses:
+            if resource.status not in statuses:
                 return False
         return True
 

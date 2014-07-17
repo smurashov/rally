@@ -13,8 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import urlparse
-
 from ceilometerclient import client as ceilometer
 from cinderclient import client as cinder
 import glanceclient as glance
@@ -24,9 +22,10 @@ from keystoneclient import exceptions as keystone_exceptions
 from keystoneclient.v2_0 import client as keystone
 from neutronclient.neutron import client as neutron
 from novaclient import client as nova
+from muranoclient import client as mclient
 from oslo.config import cfg
+import urlparse
 
-from rally import consts
 from rally import exceptions
 
 
@@ -45,20 +44,6 @@ CONF.register_opts([
 nova._adapter_pool = lambda x: nova.adapters.HTTPAdapter()
 
 
-def cached(func):
-    """Cache client handles."""
-    def wrapper(self, *args, **kwargs):
-        key = '{0}{1}{2}'.format(func.__name__,
-                                 str(args) if args else '',
-                                 str(kwargs) if kwargs else '')
-
-        if key in self.cache:
-            return self.cache[key]
-        self.cache[key] = func(self, *args, **kwargs)
-        return self.cache[key]
-    return wrapper
-
-
 class Clients(object):
     """This class simplify and unify work with openstack python clients."""
 
@@ -70,7 +55,21 @@ class Clients(object):
         """Remove all cached client handles."""
         self.cache = {}
 
-    @cached
+    def memoize(name):
+        """Cache client handles."""
+        def decorate(func):
+            def wrapper(self, *args, **kwargs):
+                key = '{0}{1}{2}'.format(func.__name__,
+                                         str(args) if args else '',
+                                         str(kwargs) if kwargs else '')
+                if key in self.cache:
+                    return self.cache[key]
+                self.cache[key] = func(self, *args, **kwargs)
+                return self.cache[key]
+            return wrapper
+        return decorate
+
+    @memoize('keystone')
     def keystone(self):
         """Return keystone client."""
         new_kw = {
@@ -112,9 +111,9 @@ class Clients(object):
                 url=self.endpoint.auth_url)
         return client
 
-    @cached
+    @memoize('nova')
     def nova(self, version='2'):
-        """Return nova client."""
+        """Returns nova client."""
         client = nova.Client(version,
                              self.endpoint.username,
                              self.endpoint.password,
@@ -128,9 +127,9 @@ class Clients(object):
                              cacert=CONF.https_cacert)
         return client
 
-    @cached
+    @memoize('neutron')
     def neutron(self, version='2.0'):
-        """Return neutron client."""
+        """Returns neutron client."""
         client = neutron.Client(version,
                                 username=self.endpoint.username,
                                 password=self.endpoint.password,
@@ -142,9 +141,9 @@ class Clients(object):
                                 cacert=CONF.https_cacert)
         return client
 
-    @cached
+    @memoize('glance')
     def glance(self, version='1'):
-        """Return glance client."""
+        """Returns glance client."""
         kc = self.keystone()
         endpoint = kc.service_catalog.get_endpoints()['image'][0]
         client = glance.Client(version,
@@ -156,9 +155,9 @@ class Clients(object):
                                cacert=CONF.https_cacert)
         return client
 
-    @cached
+    @memoize('heat')
     def heat(self, version='1'):
-        """Return heat client."""
+        """Returns heat client."""
         kc = self.keystone()
         endpoint = kc.service_catalog.get_endpoints()['orchestration'][0]
 
@@ -171,9 +170,9 @@ class Clients(object):
                              cacert=CONF.https_cacert)
         return client
 
-    @cached
+    @memoize('cinder')
     def cinder(self, version='1'):
-        """Return cinder client."""
+        """Returns cinder client."""
         client = cinder.Client(version,
                                self.endpoint.username,
                                self.endpoint.password,
@@ -187,9 +186,9 @@ class Clients(object):
                                cacert=CONF.https_cacert)
         return client
 
-    @cached
+    @memoize('ceilometer')
     def ceilometer(self, version='2'):
-        """Return ceilometer client."""
+        """Returns ceilometer client."""
         kc = self.keystone()
         endpoint = kc.service_catalog.get_endpoints()['metering'][0]
         auth_token = kc.auth_token
@@ -206,9 +205,9 @@ class Clients(object):
                                    cacert=CONF.https_cacert)
         return client
 
-    @cached
+    @memoize('ironic')
     def ironic(self, version='1.0'):
-        """Return Ironic client."""
+        """Returns Ironic client."""
         client = ironic.Client(version,
                                username=self.endpoint.username,
                                password=self.endpoint.password,
@@ -219,15 +218,13 @@ class Clients(object):
                                cacert=CONF.https_cacert)
         return client
 
-    @cached
-    def services(self):
-        """Return available services names and types.
+    @memoize('murano')
+    def murano(self, version='1'):
+        kc = self.keystone()
+        auth_token = kc.auth_token
+        murano_url = 'http://localhost:8082'
 
-        :returns: dict, {"service_type": "service_name", ...}
-        """
-        services_data = {}
-        available_services = self.keystone().service_catalog.get_endpoints()
-        for service_type in available_services.keys():
-            if service_type in consts.ServiceType:
-                services_data[service_type] = consts.ServiceType[service_type]
-        return services_data
+        client = mclient.Client(version, endpoint=murano_url,
+                                token=auth_token)
+
+        return client

@@ -57,12 +57,11 @@ Eventlet:
 
 """
 
+import paramiko
 import select
 import socket
 import StringIO
 import time
-
-import paramiko
 
 from rally.openstack.common.gettextutils import _
 from rally.openstack.common import log as logging
@@ -123,7 +122,7 @@ class SSH(object):
             self._client.connect(self.host, username=self.user,
                                  port=self.port, pkey=self.pkey,
                                  key_filename=self.key_filename,
-                                 password=self.password, timeout=1)
+                                 password=self.password)
             return self._client
         except Exception as e:
             message = _("Exception %(exception_type)s was raised "

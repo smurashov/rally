@@ -13,15 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import os
-import sys
-
 import mock
-import testtools
+import os
 
-from rally import exceptions
-from rally.openstack.common import jsonutils
-from rally.verification.verifiers.tempest import subunit2json
 from rally.verification.verifiers.tempest import tempest
 from tests import test
 
@@ -38,11 +32,23 @@ class TempestTestCase(test.TestCase):
 
         self.verifier.tempest_path = '/tmp'
         self.verifier.config_file = '/tmp/tempest.conf'
-        self.verifier.log_file_raw = '/tmp/subunit.stream'
+        self.verifier.log_file = '/tmp/tests_log.xml'
         self.regex = None
 
-    @mock.patch('os.path.exists', return_value=True)
+    @mock.patch('six.moves.builtins.open')
+    def test__write_config(self, mock_open):
+        conf = mock.Mock()
+        mock_file = mock.MagicMock()
+        mock_open.return_value = mock_file
+        self.verifier._write_config(conf)
+        mock_open.assert_called_once_with(self.verifier.config_file, 'w+')
+        conf.write.assert_called_once_with(mock_file.__enter__())
+        mock_file.__exit__.assert_called_once_with(None, None, None)
+
+    @mock.patch('os.path.exists')
     def test_is_installed(self, mock_exists):
+        mock_exists.return_value = True
+
         result = self.verifier.is_installed()
 
         mock_exists.assert_called_once_with(
@@ -76,8 +82,9 @@ class TempestTestCase(test.TestCase):
             shell=True)
 
     @mock.patch('rally.verification.verifiers.tempest.tempest.shutil')
-    @mock.patch('os.path.exists', return_value=True)
+    @mock.patch('os.path.exists')
     def test_uninstall(self, mock_exists, mock_shutil):
+        mock_exists.return_value = True
         self.verifier.uninstall()
         mock_shutil.rmtree.assert_called_once_with(self.verifier.tempest_path)
 
@@ -87,7 +94,8 @@ class TempestTestCase(test.TestCase):
         self.verifier.run('tempest.api.image')
         fake_call = (
             '%(venv)s testr run --parallel --subunit tempest.api.image '
-            '| tee %(tempest_path)s/subunit.stream '
+            '| %(venv)s subunit2junitxml --forward '
+            '--output-to=%(tempest_path)s/tests_log.xml '
             '| %(venv)s subunit-2to1 '
             '| %(venv)s %(tempest_path)s/tools/colorizer.py' % {
                 'venv': self.verifier.venv_wrapper,
@@ -100,14 +108,20 @@ class TempestTestCase(test.TestCase):
     @mock.patch(TEMPEST_PATH + '.tempest.Tempest.discover_tests')
     @mock.patch(TEMPEST_PATH + '.tempest.Tempest._initialize_testr')
     @mock.patch(TEMPEST_PATH + '.tempest.Tempest.run')
+    @mock.patch(TEMPEST_PATH + '.tempest.Tempest._write_config')
     @mock.patch(TEMPEST_PATH + '.config.TempestConf')
     @mock.patch('rally.db.deployment_get')
     @mock.patch('rally.osclients.Clients')
     @mock.patch('rally.objects.endpoint.Endpoint')
     def test_verify(self, mock_endpoint, mock_osclients, mock_get, mock_conf,
-                    mock_run, mock_testr_init, mock_discover, mock_os):
+                    mock_write, mock_run, mock_testr_init, mock_discover,
+                    mock_os):
+        fake_conf = mock.MagicMock()
+        mock_conf().generate.return_value = fake_conf
+
         self.verifier.verify("smoke", None)
-        mock_conf().generate.assert_called_once_with(self.verifier.config_file)
+        mock_conf().generate.assert_called_once_with()
+        mock_write.assert_called_once_with(fake_conf)
         mock_run.assert_called_once_with("smoke")
 
     @mock.patch('os.environ')
@@ -123,20 +137,20 @@ class TempestTestCase(test.TestCase):
         self.verifier._generate_env()
         self.assertEqual(expected_env, self.verifier._env)
 
-    @mock.patch('os.path.isdir', return_value=True)
+    @mock.patch('os.path.isdir')
     @mock.patch(TEMPEST_PATH + '.tempest.subprocess')
-    @testtools.skipIf(sys.version_info < (2, 7), "Incompatible Python Version")
     def test__venv_install_when_venv_exists(self, mock_sp, mock_isdir):
+        mock_isdir.return_value = True
         self.verifier._install_venv()
 
         mock_isdir.assert_called_once_with(
             os.path.join(self.verifier.tempest_path, '.venv'))
         self.assertFalse(mock_sp.called)
 
-    @mock.patch('os.path.isdir', return_value=False)
+    @mock.patch('os.path.isdir')
     @mock.patch(TEMPEST_PATH + '.tempest.subprocess.check_call')
-    @testtools.skipIf(sys.version_info < (2, 7), "Incompatible Python Version")
     def test__venv_install_when_venv_not_exist(self, mock_sp, mock_isdir):
+        mock_isdir.return_value = False
         self.verifier._install_venv()
 
         mock_isdir.assert_called_once_with(
@@ -144,34 +158,28 @@ class TempestTestCase(test.TestCase):
         mock_sp.assert_has_calls([
             mock.call('python ./tools/install_venv.py', shell=True,
                       cwd=self.verifier.tempest_path),
+            mock.call('%s pip install junitxml' % self.verifier.venv_wrapper,
+                      shell=True, cwd=self.verifier.tempest_path),
             mock.call('%s python setup.py install' %
                       self.verifier.venv_wrapper, shell=True,
                       cwd=self.verifier.tempest_path)])
 
-    @mock.patch('os.path.isdir', return_value=False)
-    @testtools.skipIf(sys.version_info >= (2, 7),
-                      "Incompatible Python Version")
-    def test__venv_install_for_py26_fails(self, mock_isdir):
-        self.assertRaises(exceptions.IncompatiblePythonVersion,
-                          self.verifier._install_venv)
-
-        mock_isdir.assert_called_once_with(
-            os.path.join(self.verifier.tempest_path, '.venv'))
-
-    @mock.patch('os.path.isdir', return_value=True)
+    @mock.patch('os.path.isdir')
     @mock.patch(TEMPEST_PATH + '.tempest.subprocess')
     def test__initialize_testr_when_testr_already_initialized(
             self, mock_sp, mock_isdir):
+        mock_isdir.return_value = True
         self.verifier._initialize_testr()
 
         mock_isdir.assert_called_once_with(
             os.path.join(self.verifier.tempest_path, '.testrepository'))
         self.assertFalse(mock_sp.called)
 
-    @mock.patch('os.path.isdir', return_value=False)
+    @mock.patch('os.path.isdir')
     @mock.patch(TEMPEST_PATH + '.tempest.subprocess.check_call')
     def test__initialize_testr_when_testr_not_initialized(
             self, mock_sp, mock_isdir):
+        mock_isdir.return_value = False
         self.verifier._initialize_testr()
 
         mock_isdir.assert_called_once_with(
@@ -180,25 +188,22 @@ class TempestTestCase(test.TestCase):
             '%s testr init' % self.verifier.venv_wrapper, shell=True,
             cwd=self.verifier.tempest_path)
 
-    @mock.patch.object(subunit2json, 'main')
-    @mock.patch('os.path.isfile', return_value=False)
+    @mock.patch('xml.dom.minidom.parse')
+    @mock.patch('os.path.isfile')
     def test__save_results_without_log_file(self, mock_isfile, mock_parse):
+        mock_isfile.return_value = False
 
         self.verifier._save_results()
+
+        mock_isfile.assert_called_once_with(self.verifier.log_file)
         self.assertEqual(0, mock_parse.call_count)
 
-    @mock.patch('os.path.isfile', return_value=True)
+    @mock.patch('os.path.isfile')
     def test__save_results_with_log_file(self, mock_isfile):
-        with mock.patch.object(subunit2json, 'main') as mock_main:
-            data = {'total': True, 'test_cases': True}
-            mock_main.return_value = jsonutils.dumps(data)
-            self.verifier.log_file_raw = os.path.join(
-                                            os.path.dirname(__file__),
-                                            'subunit.stream')
-            self.verifier._save_results()
-            mock_isfile.assert_called_once_with(self.verifier.log_file_raw)
-            mock_main.assert_called_once_with(
-                self.verifier.log_file_raw)
-
-            self.assertEqual(
-                1, self.verifier.verification.finish_verification.call_count)
+        mock_isfile.return_value = True
+        self.verifier.log_file = os.path.join(os.path.dirname(__file__),
+                                              'fake_log.xml')
+        self.verifier._save_results()
+        mock_isfile.assert_called_once_with(self.verifier.log_file)
+        self.assertEqual(
+            1, self.verifier.verification.finish_verification.call_count)

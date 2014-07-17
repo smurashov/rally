@@ -13,9 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import os
-
 import netaddr
+import os
 
 from rally.deploy import engine
 from rally.deploy.serverprovider import provider

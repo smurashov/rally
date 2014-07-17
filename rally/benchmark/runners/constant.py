@@ -14,6 +14,7 @@
 #    under the License.
 
 
+import collections
 import multiprocessing
 import time
 
@@ -82,16 +83,21 @@ class ConstantScenarioRunner(base.ScenarioRunner):
         iter_result = pool.imap(base._run_scenario_once,
                                 self._iter_scenario_args(cls, method, context,
                                                          args, times))
+
+        results = []
+
         for i in range(times):
             try:
                 result = iter_result.next(timeout)
             except multiprocessing.TimeoutError as e:
-                result = base.format_result_on_timeout(e, timeout)
-
-            self._send_result(result)
+                result = {"duration": timeout, "idle_duration": 0,
+                          "error": utils.format_exc(e)}
+            results.append(result)
 
         pool.close()
         pool.join()
+
+        return base.ScenarioRunnerResult(results)
 
 
 class ConstantForDurationScenarioRunner(base.ScenarioRunner):
@@ -151,17 +157,22 @@ class ConstantForDurationScenarioRunner(base.ScenarioRunner):
                     self._iter_scenario_args(cls, method, context, args))
         iter_result = pool.imap(base._run_scenario_once, run_args)
 
+        results_queue = collections.deque([], maxlen=concurrency)
         start = time.time()
         while True:
             try:
                 result = iter_result.next(timeout)
             except multiprocessing.TimeoutError as e:
-                result = base.format_result_on_timeout(e, timeout)
-
-            self._send_result(result)
+                result = {"duration": timeout, "idle_duration": 0,
+                          "error": utils.format_exc(e)}
+            results_queue.append(result)
 
             if time.time() - start > duration:
                 break
 
+        results = list(results_queue)
+
         pool.terminate()
         pool.join()
+
+        return base.ScenarioRunnerResult(results)

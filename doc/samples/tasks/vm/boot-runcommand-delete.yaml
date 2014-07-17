@@ -1,0 +1,18 @@
+---
+  VMTasks.boot_runcommand_delete:
+    -
+      args:
+        flavor_id: "1"
+        image_id: "231bdb41-f959-4496-a272-3ef9f6d9f790"
+        script: "doc/samples/support/instance_dd_test.sh"
+        interpreter: "/bin/sh"
+        username: "ubuntu"
+        port: "22"
+      runner:
+        type: "constant"
+        times: 10
+        concurrency: 2
+      context:
+        users:
+          tenants: 3
+          users_per_tenant: 2

@@ -14,7 +14,6 @@
 #    under the License.
 
 import abc
-import collections
 import copy
 import random
 
@@ -32,16 +31,6 @@ from rally import utils as rutils
 
 
 LOG = logging.getLogger(__name__)
-
-
-def format_result_on_timeout(exc, timeout):
-    return {
-        "duration": timeout,
-        "idle_duration": 0,
-        "scenario_output": {"errors": "", "data": {}},
-        "atomic_actions": [],
-        "error": utils.format_exc(exc)
-    }
 
 
 def _get_scenario_context(context):
@@ -66,11 +55,11 @@ def _run_scenario_once(args):
             clients=osclients.Clients(context["user"]["endpoint"]))
 
     error = []
-    scenario_output = {"errors": "", "data": {}}
+    scenario_output = {}
     try:
         with rutils.Timer() as timer:
             scenario_output = getattr(scenario,
-                                      method_name)(**kwargs) or scenario_output
+                                      method_name)(**kwargs) or {}
     except Exception as e:
         error = utils.format_exc(e)
         if cfg.CONF.debug:
@@ -88,53 +77,56 @@ def _run_scenario_once(args):
                 "atomic_actions": scenario.atomic_actions()}
 
 
-class ScenarioRunnerResult(dict):
+class ScenarioRunnerResult(list):
     """Class for all scenario runners' result."""
 
     RESULT_SCHEMA = {
-        "type": "object",
+        "type": "array",
         "$schema": rutils.JSON_SCHEMA,
-        "properties": {
-            "duration": {
-                "type": "number"
-            },
-            "idle_duration": {
-                "type": "number"
-            },
-            "scenario_output": {
-                "type": "object",
-                "properties": {
-                    "data": {
-                        "type": "object",
-                        "patternProperties": {
-                            ".*": {"type": "number"}
-                        }
-                    },
-                    "errors": {
-                        "type": "string"
-                    },
+        "items": {
+            "type": "object",
+            "properties": {
+                "duration": {
+                    "type": "number"
                 },
-                "additionalProperties": False
-            },
-            "atomic_actions": {
-                "type": "array",
-                "items": {
+                "idle_duration": {
+                    "type": "number"
+                },
+                "scenario_output": {
                     "type": "object",
                     "properties": {
-                        "action": {"type": "string"},
-                        "duration": {"type": "number"}
+                        "data": {
+                            "type": "object",
+                            "patternProperties": {
+                                ".*": {"type": "number"}
+                            }
+                        },
+                        "errors": {
+                            "type": "string"
+                        },
                     },
                     "additionalProperties": False
+                },
+                "atomic_actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string"},
+                            "duration": {"type": "number"}
+                        },
+                        "additionalProperties": False
+                    }
+                },
+                "error": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             },
-            "error": {
-                "type": "array",
-                "items": {
-                    "type": "string"
-                }
-            }
-        },
-        "additionalProperties": False
+            "additionalProperties": False
+        }
     }
 
     def __init__(self, result_list):
@@ -162,7 +154,6 @@ class ScenarioRunner(object):
         #                a single admin endpoint here.
         self.admin_user = endpoints[0]
         self.config = config
-        self.result_queue = collections.deque()
 
     @staticmethod
     def _get_cls(runner_type):
@@ -216,15 +207,14 @@ class ScenarioRunner(object):
             "config": scenario_context
         }
 
-        args = cls.preprocess(method_name, context_obj, args)
-        base_ctx.ContextManager.run(context_obj, self._run_scenario,
-                                    cls, method_name, args)
+        results = base_ctx.ContextManager.run(context_obj, self._run_scenario,
+                                              cls, method_name, context_obj,
+                                              args)
 
-    def _send_result(self, result):
-        """Send partial result to consumer.
+        if not isinstance(results, ScenarioRunnerResult):
+            name = self.__execution_type__
+            results_type = type(results)
+            raise exceptions.InvalidRunnerResult(name=name,
+                                                 results_type=results_type)
 
-        :param result: Result dict to be sent. It should match the
-                       ScenarioRunnerResult schema, otherwise
-                       ValidationError is raised.
-        """
-        self.result_queue.append(ScenarioRunnerResult(result))
+        return results

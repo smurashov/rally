@@ -13,14 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import datetime
-
 import mock
+
+import datetime
+from tests import fakes
+from tests import test
 
 from rally.benchmark import utils
 from rally import exceptions
-from tests import fakes
-from tests import test
 
 
 class BenchmarkUtilsTestCase(test.TestCase):
@@ -78,15 +78,6 @@ class BenchmarkUtilsTestCase(test.TestCase):
         get_from_manager = utils.get_from_manager()
         manager = fakes.FakeManager()
         resource = fakes.FakeResource(manager=manager, status="DELETED")
-        manager._cache(resource)
-        self.assertRaises(exceptions.GetResourceNotFound,
-                          get_from_manager, resource)
-
-    def test_get_from_manager_in_deleted_state_for_heat_resource(self):
-        get_from_manager = utils.get_from_manager()
-        manager = fakes.FakeManager()
-        resource = fakes.FakeResource(manager=manager)
-        resource.stack_status = "DELETE_COMPLETE"
         manager._cache(resource)
         self.assertRaises(exceptions.GetResourceNotFound,
                           get_from_manager, resource)

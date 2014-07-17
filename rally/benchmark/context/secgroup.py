@@ -54,7 +54,7 @@ def _prepare_open_secgroup(endpoint):
         },
         {
             "ip_protocol": "icmp",
-            "to_port": -1,
+            "to_port": 1,
             "from_port": -1,
             "ip_range": {"cidr": "0.0.0.0/0"}
         }
@@ -87,7 +87,7 @@ class AllowSSH(base.Context):
         self.context["allow_ssh"] = SSH_GROUP_NAME
         self.secgroup = []
 
-    @utils.log_task_wrapper(LOG.info, _("Enter context: `allow_ssh`"))
+    @utils.log_task_wrapper(LOG.info, _("Exit context: `allow_ssh`"))
     def setup(self):
         used_tenants = []
         for user in self.context['users']:

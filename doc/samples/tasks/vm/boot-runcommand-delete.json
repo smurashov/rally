@@ -1,0 +1,24 @@
+{
+    "VMTasks.boot_runcommand_delete": [
+        {
+            "args": {
+                "flavor_id": "100",
+                "image_id": "8ec0b1bc-bb9c-4176-9d06-e23016091a51",
+                "script": "doc/samples/support/instance_dd_test.sh",
+                "interpreter": "/bin/sh",
+                "username": "cirros"
+            },
+            "runner": {
+                "type": "constant",
+                "times": 10,
+                "concurrency": 2
+            },
+            "context": {
+                "users": {
+                    "tenants": 3,
+                    "users_per_tenant": 2
+                }
+            }
+        }
+    ]
+}

@@ -17,31 +17,15 @@
 PROJECT=`echo $ZUUL_PROJECT | cut -d \/ -f 2`
 SCENARIO=$BASE/new/$PROJECT/rally-scenarios/${RALLY_SCENARIO}.yaml
 PLUGINS_DIR=$BASE/new/$PROJECT/rally-scenarios/plugins
-EXTRA_DIR=$BASE/new/$PROJECT/rally-scenarios/extra
 
 if [ -d $PLUGINS_DIR ]; then
  mkdir -p ~/.rally/plugins/scenarios
- cp -r $PLUGINS_DIR/*.py ~/.rally/plugins/scenarios/
-fi
-
-if [ -d $EXTRA_DIR ]; then
- mkdir -p ~/.rally/extra
- cp -r $EXTRA_DIR/* ~/.rally/extra/
+ cp $PLUGINS_DIR/*.py ~/.rally/plugins/scenarios/
 fi
 
 rally use deployment --name devstack
-rally deployment check
-rally show flavors
-rally show images
-rally show networks
-rally show secgroups
-rally show keypairs
 rally -v task start --task $SCENARIO
 mkdir rally-plot
 rally task plot2html --out rally-plot/results.html
 gzip -9 rally-plot/results.html
-rally task results | python -m json.tool > rally-plot/results.json
-gzip -9 rally-plot/results.json
-rally task detailed > rally-plot/detailed.txt
-gzip -9 rally-plot/detailed.txt
 env

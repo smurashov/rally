@@ -40,12 +40,6 @@ class GlanceImagesTestCase(test.TestCase):
                                             "url", "df", fakearg="f")
         mock_list.assert_called_once_with()
 
-    @mock.patch(GLANCE_IMAGES + "._list_images")
-    def test_list_images(self, mock_list):
-        glance_scenario = images.GlanceImages()
-        glance_scenario.list_images()
-        mock_list.assert_called_once_with()
-
     @mock.patch(GLANCE_IMAGES + "._generate_random_name")
     @mock.patch(GLANCE_IMAGES + "._delete_image")
     @mock.patch(GLANCE_IMAGES + "._create_image")
@@ -88,9 +82,9 @@ class GlanceImagesTestCase(test.TestCase):
         mock_random_name.return_value = "random_name"
         kwargs = {'fakearg': 'f'}
         with mock.patch("rally.benchmark.scenarios.glance.utils.time.sleep"):
-            glance_scenario.create_image_and_boot_instances("cf", "url",
-                                                            "df", "fid",
-                                                            5, **kwargs)
+            glance_scenario.\
+                create_image_and_boot_instances("cf", "url", "df",
+                                                "fid", 5, **kwargs)
             mock_create_image.assert_called_once_with("random_name", "cf",
                                                       "url", "df", **kwargs)
             mock_boot_servers.assert_called_once_with("random_name",

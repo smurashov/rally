@@ -17,7 +17,7 @@
         times: 10
         concurrency: 10
 
-  CeilometerAlarms.create_alarm:
+  CeilometerBasic.create_alarm:
     -
       args:
         meter_name: "ram_util"
@@ -32,7 +32,7 @@
         times: 10
         concurrency: 10
 
-  CeilometerAlarms.create_and_delete_alarm:
+  CeilometerBasic.create_and_delete_alarm:
     -
       args:
         meter_name: "ram_util"
@@ -47,7 +47,7 @@
         times: 10
         concurrency: 10
 
-  CeilometerAlarms.create_and_list_alarm:
+  CeilometerBasic.create_and_list_alarm:
     -
       args:
         meter_name: "ram_util"
@@ -62,7 +62,7 @@
         times: 10
         concurrency: 10
 
-  CeilometerAlarms.create_and_update_alarm:
+  CeilometerBasic.create_and_update_alarm:
     -
       args:
         meter_name: "ram_util"
@@ -77,7 +77,7 @@
         times: 10
         concurrency: 10
 
-  CeilometerAlarms.list_alarms:
+  CeilometerBasic.list_alarms:
     -
       runner:
         type: "constant"
@@ -101,7 +101,7 @@
   Dummy.dummy:
     -
       args:
-        sleep: 0.25
+        sleep: 5
       runner:
         type: "constant"
         times: 20
@@ -110,35 +110,6 @@
         users:
           tenants: 1
           users_per_tenant: 1
-    -
-      args:
-        sleep: 0.01
-      runner:
-        type: "constant"
-        times: 1
-        concurrency: 1
-      context:
-        users:
-          tenants: 5
-          users_per_tenant: 5
-        quotas:
-          nova:
-            instances: 200
-            cores: 200
-            ram: -1
-            floating_ips: 200
-            fixed_ips: 200
-            metadata_items: -1
-            injected_files: -1
-            injected_file_content_bytes: -1
-            injected_file_path_bytes: -1
-            key_pairs: 500
-            security_groups: 400
-            security_group_rules: 600
-          cinder:
-            gigabytes: -1
-            snapshots: -1
-            volumes: -1
 
   Dummy.dummy_exception:
     -
@@ -166,17 +137,6 @@
           tenants: 1
           users_per_tenant: 1
 
-  Dummy.dummy_with_scenario_output:
-    -
-      runner:
-        type: "constant"
-        times: 20
-        concurrency: 10
-      context:
-        users:
-          tenants: 1
-          users_per_tenant: 1
-
   FakePlugin.testplugin:
     -
       runner:
@@ -196,169 +156,3 @@
         type: "constant"
         times: 200
         concurrency: 5
-
-  CeilometerQueries.create_and_query_alarms:
-    -
-      args:
-        filter: {"and": [{"!=": {"state": "dummy_state"}},{"=": {"type": "threshold"}}]}
-        orderby: !!null
-        limit: 10
-        meter_name: "ram_util"
-        threshold: 10.0
-        type: "threshold"
-        statistic: "avg"
-        alarm_actions: ["http://localhost:8776/alarm"]
-        ok_actions: ["http://localhost:8776/ok"]
-        insufficient_data_actions: ["http://localhost:8776/notok"]
-      runner:
-        type: "constant"
-        times: 10
-        concurrency: 10
-
-  CeilometerQueries.create_and_query_alarm_history:
-    -
-      args:
-        orderby: !!null
-        limit: !!null
-        meter_name: "ram_util"
-        threshold: 10.0
-        type: "threshold"
-        statistic: "avg"
-        alarm_actions: ["http://localhost:8776/alarm"]
-        ok_actions: ["http://localhost:8776/ok"]
-        insufficient_data_actions: ["http://localhost:8776/notok"]
-      runner:
-        type: "constant"
-        times: 10
-        concurrency: 10
-
-  CeilometerQueries.create_and_query_samples:
-    -
-      args:
-        filter: {"=": {"counter_unit": "instance"}}
-        orderby: !!null
-        limit: 10
-        counter_name: "cpu_util"
-        counter_type: "gauge"
-        counter_unit: "instance"
-        counter_volume: 1.0
-        resource_id: "resource_id"
-      runner:
-        type: "constant"
-        times: 10
-        concurrency: 10
-
-  HeatStacks.create_and_list_stack:
-    -
-      runner:
-        type: "constant"
-        times: 10
-        concurrency: 1
-      context:
-        users:
-          tenants: 1
-          users_per_tenant: 1
-
-  HeatStacks.create_and_delete_stack:
-    -
-      runner:
-        type: "constant"
-        times: 10
-        concurrency: 2
-      context:
-        users:
-          tenants: 2
-          users_per_tenant: 3
-
-  Authenticate.validate_cinder:
-    -
-      args:
-        repetitions: 2
-      runner:
-        type: "constant"
-        times: 10
-        concurrency: 5
-      context:
-        users:
-          tenants: 3
-          users_per_tenant: 5
-
-  Authenticate.validate_glance:
-    -
-      args:
-        repetitions: 2
-      runner:
-        type: "constant"
-        times: 10
-        concurrency: 5
-      context:
-        users:
-          tenants: 3
-          users_per_tenant: 5
-
-  Authenticate.validate_heat:
-    -
-      args:
-        repetitions: 2
-      runner:
-        type: "constant"
-        times: 10
-        concurrency: 5
-      context:
-        users:
-          tenants: 3
-          users_per_tenant: 5
-
-  Authenticate.validate_nova:
-    -
-      args:
-        repetitions: 2
-      runner:
-        type: "constant"
-        times: 10
-        concurrency: 5
-      context:
-        users:
-          tenants: 3
-          users_per_tenant: 5
-
-  VMTasks.boot_runcommand_delete:
-    -
-      args:
-        flavor:
-          name: "m1.tiny"
-        image:
-          name: "cirros-0.3.2-x86_64-uec"
-        fixed_network: "private"
-        floating_network: "public"
-        use_floatingip: true
-        script: "/home/jenkins/.rally/extra/instance_dd_test.sh"
-        interpreter: "/bin/sh"
-        username: "cirros"
-      runner:
-        type: "constant"
-        times: 6
-        concurrency: 3
-      context:
-        users:
-          tenants: 1
-          users_per_tenant: 1
-    -
-      args:
-        flavor:
-          name: "m1.tiny"
-        image:
-          name: "cirros-0.3.2-x86_64-uec"
-        fixed_network: "private"
-        use_floatingip: false
-        script: "/home/jenkins/.rally/extra/instance_dd_test.sh"
-        interpreter: "/bin/sh"
-        username: "cirros"
-      runner:
-        type: "constant"
-        times: 6
-        concurrency: 3
-      context:
-        users:
-          tenants: 1
-          users_per_tenant: 1

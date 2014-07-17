@@ -15,9 +15,8 @@
 
 """Test for deploy engines."""
 
-import uuid
-
 import mock
+import uuid
 
 from rally import consts
 from rally import deploy

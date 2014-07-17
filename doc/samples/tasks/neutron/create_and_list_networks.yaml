@@ -1,0 +1,13 @@
+---
+  NeutronNetworks.create_and_list_networks:
+    -
+      args:
+        network_data:
+      runner:
+        type: "constant"
+        times: 100
+        concurrency: 10
+      context:
+        users:
+          tenants: 1
+          users_per_tenant: 1

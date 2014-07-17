@@ -13,9 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import os
-
+import httplib
 import mock
+import os
 from oslo.config import cfg
 
 from rally import exceptions
@@ -30,8 +30,7 @@ class ConfigTestCase(test.TestCase):
 
     @mock.patch("rally.objects.deploy.db.deployment_get")
     @mock.patch("rally.osclients.Clients.verified_keystone")
-    @mock.patch("rally.verification.verifiers.tempest.config.os.path.isfile",
-                return_value=True)
+    @mock.patch("rally.verification.verifiers.tempest.config.os.path.isfile")
     def setUp(self, mock_isfile, mock_verified_keystone, mock_get):
         super(ConfigTestCase, self).setUp()
         self.endpoint = {"username": "test",
@@ -40,6 +39,7 @@ class ConfigTestCase(test.TestCase):
                          "auth_url": "http://test/v2.0",
                          "permission": "admin"}
         mock_get.return_value = {"endpoints": [self.endpoint]}
+        mock_isfile.return_value = True
         self.deploy_id = "fake_deploy_id"
         self.conf_generator = config.TempestConf(self.deploy_id)
 
@@ -50,26 +50,27 @@ class ConfigTestCase(test.TestCase):
                     ("use_stderr", "False"))
         return [item for item in items if item not in defaults]
 
-    @mock.patch("rally.verification.verifiers.tempest.config.requests")
-    @mock.patch("rally.verification.verifiers.tempest.config.os.rename")
+    @mock.patch("rally.verification.verifiers.tempest.config.urllib2.urlopen")
     @mock.patch("six.moves.builtins.open")
-    def test__load_img_success(self, mock_open, mock_rename, mock_requests):
+    def test__load_img_success(self, mock_open, mock_urlopen):
         mock_result = mock.MagicMock()
-        mock_result.status_code = 200
-        mock_requests.get.return_value = mock_result
+        mock_result.getcode.return_value = httplib.OK
+        mock_urlopen.return_value = mock_result
         mock_file = mock.MagicMock()
         mock_open.return_value = mock_file
         self.conf_generator._load_img()
         cirros_url = ("http://download.cirros-cloud.net/%s/%s" %
                       (CONF.image.cirros_version,
                        CONF.image.cirros_image))
-        mock_requests.get.assert_called_once_with(cirros_url, stream=True)
+        mock_urlopen.assert_called_once_with(cirros_url)
+        mock_file.__enter__().write.assert_called_once_with(mock_result.read())
+        mock_file.__exit__.assert_called_once_with(None, None, None)
 
-    @mock.patch("rally.verification.verifiers.tempest.config.requests")
-    def test__load_img_notfound(self, mock_requests):
+    @mock.patch("rally.verification.verifiers.tempest.config.urllib2.urlopen")
+    def test__load_img_notfound(self, mock_urlopen):
         mock_result = mock.MagicMock()
-        mock_result.status_code = 404
-        mock_requests.get.return_value = mock_result
+        mock_result.getcode.return_value = httplib.NOT_FOUND
+        mock_urlopen.return_value = mock_result
         self.assertRaises(exceptions.TempestConfigCreationFailure,
                           self.conf_generator._load_img)
 
@@ -77,11 +78,10 @@ class ConfigTestCase(test.TestCase):
         service = "test_service"
         url = "test_url"
         # mocked at setUp
-        self.conf_generator.keystoneclient.auth_ref = {
-            "serviceCatalog": [{
-                "name": service,
-                "endpoints": [{"publicURL": url}]
-            }]}
+        self.conf_generator.keystoneclient.auth_ref = {"serviceCatalog":
+                                                       [{"name": service,
+                                                        "endpoints":
+                                                        [{"publicURL": url}]}]}
         self.assertEqual(self.conf_generator._get_url(service), url)
 
     @mock.patch("rally.verification.verifiers.tempest.config.TempestConf"
@@ -202,10 +202,10 @@ class ConfigTestCase(test.TestCase):
                          self.conf_generator.conf.get("compute",
                                                       "ssh_connect_method"))
 
-    @mock.patch("rally.verification.verifiers.tempest.config.os.path.exists",
-                return_value=False)
+    @mock.patch("rally.verification.verifiers.tempest.config.os.path.exists")
     @mock.patch("rally.verification.verifiers.tempest.config.os.makedirs")
     def test__set_default(self, mock_makedirs, mock_exists):
+        mock_exists.return_value = False
         self.conf_generator._set_default()
         lock_path = os.path.join(self.conf_generator.data_path, "lock_files_%s"
                                  % self.deploy_id)
@@ -269,11 +269,11 @@ class ConfigTestCase(test.TestCase):
                          self.conf_generator.conf.get("network",
                                                       "default_network"))
 
-    @mock.patch("rally.verification.verifiers.tempest.config.requests")
-    def test__set_service_available(self, mock_requests):
+    @mock.patch("rally.verification.verifiers.tempest.config.urllib2.urlopen")
+    def test__set_service_available(self, mock_urlopen):
         mock_result = mock.MagicMock()
-        mock_result.status_code = 404
-        mock_requests.get.return_value = mock_result
+        mock_result.getcode.return_value = httplib.NOT_FOUND
+        mock_urlopen.return_value = mock_result
         available_services = ("nova", "cinder", "glance")
         self.conf_generator.available_services = available_services
         self.conf_generator._set_service_available()
@@ -285,25 +285,12 @@ class ConfigTestCase(test.TestCase):
             self.conf_generator.conf.items("service_available"))
         self.assertEqual(sorted(expected), sorted(options))
 
-    @mock.patch("rally.verification.verifiers.tempest.config.requests")
-    def test__set_service_available_horizon(self, mock_requests):
+    @mock.patch("rally.verification.verifiers.tempest.config.urllib2.urlopen")
+    def test__set_service_available_horizon(self, mock_urlopen):
         mock_result = mock.MagicMock()
-        mock_result.status_code = 200
-        mock_requests.get.return_value = mock_result
+        mock_result.getcode.return_value = httplib.OK
+        mock_urlopen.return_value = mock_result
         self.conf_generator._set_service_available()
-        self.assertEqual(self.conf_generator.conf.get(
-            "service_available", "horizon"), "True")
-
-    @mock.patch('six.moves.builtins.open')
-    def test_write_config(self, mock_open):
-        self.conf_generator.conf = mock.Mock()
-        mock_file = mock.MagicMock()
-        mock_open.return_value = mock_file
-        file_name = '/path/to/fake/conf'
-
-        self.conf_generator.write_config(file_name)
-
-        mock_open.assert_called_once_with(file_name, 'w+')
-        self.conf_generator.conf.write.assert_called_once_with(
-            mock_file.__enter__())
-        mock_file.__exit__.assert_called_once_with(None, None, None)
+        self.assertEqual(self.conf_generator.conf.get("service_available",
+                                                      "horizon"),
+                         "True")

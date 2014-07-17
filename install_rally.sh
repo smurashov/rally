@@ -9,7 +9,6 @@
 # programs already installed:
 # -> Python 2.6 or Python 2.7
 
-set -e
 
 err() {
   echo "${0##*/}: $@" >&2
@@ -70,14 +69,14 @@ init_variables() {
 }
 
 install_rhel_based_system_requirements() {
-  local install_rally_dependencies='wget'
+  local install_rally_dependencies='curl'
   local cryptography_dependencies='gcc libffi-devel python-devel openssl-devel gmp-devel'
   local external_dependencies='libxml2-devel libxslt-devel' # dependencies from projects, which are used by rally
   yum -y install ${install_rally_dependencies} ${cryptography_dependencies} ${external_dependencies}
 }
 
 install_debian_based_system_requirements() {
-  local install_rally_dependencies='wget'
+  local install_rally_dependencies='curl'
   local cryptography_dependencies='build-essential libssl-dev libffi-dev python-dev'
   local external_dependencies='libxml2-dev libxslt1-dev' # dependencies from projects, which are used by rally
   apt-get -y install ${install_rally_dependencies} ${cryptography_dependencies} ${external_dependencies}
@@ -87,7 +86,7 @@ unsupported_os_system_requirements() {
   echo "Your system is currently unsupported by this installation script."
   echo "Currently supported systems: RHEL-based, Debian-based."
   echo "If you want to proceed, first install manually the following dependencies:"
-  echo "gcc, libffi-devel, python-devel, openssl-devel, wget"
+  echo "gcc, libffi-devel, python-devel, openssl-devel, curl"
   while true; do
     read -p "Do you want to proceed with the installation of Rally? [Y/n]: " ans
     case ${ans} in
@@ -110,8 +109,9 @@ install_system_requirements() {
     unsupported_os_system_requirements
   fi
 
-  if ! hash pip 2> /dev/null; then
-    wget -O ${GETPIPPY_FILE} ${PIP_SECURE_LOCATION}
+  hash pip 2> /dev/null
+  if [ $? -ne 0 ]; then
+    curl -L -o ${GETPIPPY_FILE} ${PIP_SECURE_LOCATION}
     python ${GETPIPPY_FILE}
   fi
 }
@@ -134,8 +134,9 @@ install_rally() {
 
 configure_rally() {
   mkdir -p ${RALLY_DATABASE_DIR} ${RALLY_CONFIGURATION_DIR}
-  sed 's|#connection=<None>|connection=sqlite:///'${RALLY_DATABASE_DIR}'/rally.sqlite|' \
-      ${TMP}/etc/rally/rally.conf.sample > ${RALLY_CONFIGURATION_DIR}/rally.conf
+  cp ${TMP}/etc/rally/rally.conf.sample ${RALLY_CONFIGURATION_DIR}/rally.conf
+  sed -i "/#connection=<None>/a connection=sqlite:////${RALLY_DATABASE_DIR}/rally.sqlite" ${RALLY_CONFIGURATION_DIR}/rally.conf
+
   rally-manage db recreate
   chmod -R go+w ${RALLY_DATABASE_DIR}
 }

@@ -126,9 +126,7 @@ class DeploymentCommands(object):
                 r = [str(t[column]) for column in headers[:-1]]
                 r.append("" if t["uuid"] != current_deploy_id else "*")
                 table_rows.append(utils.Struct(**dict(zip(headers, r))))
-            common_cliutils.print_list(table_rows, headers,
-                                       sortby_index=headers.index(
-                                           'created_at'))
+            common_cliutils.print_list(table_rows, headers)
         else:
             print(_("There are no deployments. "
                     "To create a new deployment, use:"
@@ -150,7 +148,6 @@ class DeploymentCommands(object):
     @envutils.with_default_deploy_id
     def endpoint(self, deploy_id=None):
         """Print endpoint of the deployment.
-
         :param deploy_id: a UUID of the deployment
         """
         headers = ['auth_url', 'username', 'password', 'tenant_name',

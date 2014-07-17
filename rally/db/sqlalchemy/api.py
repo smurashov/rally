@@ -17,15 +17,19 @@ SQLAlchemy implementation for DB.API
 """
 
 from oslo.config import cfg
-from oslo.db.sqlalchemy import session as db_session
 import sqlalchemy as sa
 
 from rally.db.sqlalchemy import models
 from rally import exceptions
+from rally.openstack.common.db.sqlalchemy import session as db_session
 from rally.openstack.common.gettextutils import _
 
 
 CONF = cfg.CONF
+
+CONF.import_opt('connection',
+                'rally.openstack.common.db.options',
+                group='database')
 
 _FACADE = None
 
@@ -34,7 +38,8 @@ def _create_facade_lazily():
     global _FACADE
 
     if _FACADE is None:
-        _FACADE = db_session.EngineFacade.from_config(CONF)
+        _FACADE = db_session.EngineFacade.from_config(
+            CONF.database.connection, CONF)
 
     return _FACADE
 
@@ -91,8 +96,9 @@ class Connection(object):
         return query
 
     def _task_get(self, uuid, session=None):
-        task = (self.model_query(models.Task, session=session).
-                filter_by(uuid=uuid).first())
+        task = self.model_query(models.Task, session=session).\
+                    filter_by(uuid=uuid).\
+                    first()
         if not task:
             raise exceptions.TaskNotFound(uuid=uuid)
         return task
@@ -101,14 +107,15 @@ class Connection(object):
         return self._task_get(uuid)
 
     def task_get_detailed(self, uuid):
-        return (self.model_query(models.Task).
-                options(sa.orm.joinedload('results')).
-                filter_by(uuid=uuid).first())
+        return self.model_query(models.Task).\
+                    options(sa.orm.joinedload('results')).\
+                    filter_by(uuid=uuid).\
+                    first()
 
     def task_get_detailed_last(self):
-        return (self.model_query(models.Task).
-                options(sa.orm.joinedload('results')).
-                order_by(models.Task.id.desc()).first())
+        return self.model_query(models.Task).\
+                    options(sa.orm.joinedload('results')).\
+                    order_by(models.Task.id.desc()).first()
 
     def task_create(self, values):
         task = models.Task()
@@ -133,13 +140,14 @@ class Connection(object):
     def task_delete(self, uuid, status=None):
         session = get_session()
         with session.begin():
-            query = base_query = (self.model_query(models.Task).
-                                  filter_by(uuid=uuid))
+            query = base_query = self.model_query(models.Task).\
+                                        filter_by(uuid=uuid)
             if status is not None:
                 query = base_query.filter_by(status=status)
 
-            (self.model_query(models.TaskResult).filter_by(task_uuid=uuid).
-             delete(synchronize_session=False))
+            self.model_query(models.TaskResult).\
+                filter_by(task_uuid=uuid).\
+                delete(synchronize_session=False)
 
             count = query.delete(synchronize_session=False)
             if not count:
@@ -158,12 +166,14 @@ class Connection(object):
         return result
 
     def task_result_get_all_by_uuid(self, uuid):
-        return (self.model_query(models.TaskResult).
-                filter_by(task_uuid=uuid).all())
+        return self.model_query(models.TaskResult).\
+                    filter_by(task_uuid=uuid).\
+                    all()
 
     def _deployment_get(self, uuid, session=None):
-        deploy = (self.model_query(models.Deployment, session=session).
-                  filter_by(uuid=uuid).first())
+        deploy = self.model_query(models.Deployment, session=session).\
+                    filter_by(uuid=uuid).\
+                    first()
         if not deploy:
             raise exceptions.DeploymentNotFound(uuid=uuid)
         return deploy
@@ -177,13 +187,15 @@ class Connection(object):
     def deployment_delete(self, uuid):
         session = get_session()
         with session.begin():
-            count = (self.model_query(models.Resource, session=session).
-                     filter_by(deployment_uuid=uuid).count())
+            count = self.model_query(models.Resource, session=session).\
+                    filter_by(deployment_uuid=uuid).\
+                    count()
             if count:
                 raise exceptions.DeploymentIsBusy(uuid=uuid)
 
-            count = (self.model_query(models.Deployment, session=session).
-                     filter_by(uuid=uuid).delete(synchronize_session=False))
+            count = self.model_query(models.Deployment, session=session).\
+                filter_by(uuid=uuid).\
+                delete(synchronize_session=False)
             if not count:
                 raise exceptions.DeploymentNotFound(uuid=uuid)
 
@@ -199,8 +211,8 @@ class Connection(object):
         return deploy
 
     def deployment_list(self, status=None, parent_uuid=None, name=None):
-        query = (self.model_query(models.Deployment).
-                 filter_by(parent_uuid=parent_uuid))
+        query = self.model_query(models.Deployment).\
+                        filter_by(parent_uuid=parent_uuid)
 
         if name:
             query = query.filter_by(name=name)
@@ -215,8 +227,8 @@ class Connection(object):
         return resource
 
     def resource_get_all(self, deployment_uuid, provider_name=None, type=None):
-        query = (self.model_query(models.Resource).
-                 filter_by(deployment_uuid=deployment_uuid))
+        query = self.model_query(models.Resource).\
+                    filter_by(deployment_uuid=deployment_uuid)
         if provider_name is not None:
             query = query.filter_by(provider_name=provider_name)
         if type is not None:
@@ -224,8 +236,9 @@ class Connection(object):
         return query.all()
 
     def resource_delete(self, id):
-        count = (self.model_query(models.Resource).
-                 filter_by(id=id).delete(synchronize_session=False))
+        count = self.model_query(models.Resource).\
+                    filter_by(id=id).\
+                    delete(synchronize_session=False)
         if not count:
             raise exceptions.ResourceNotFound(id=id)
 
@@ -236,8 +249,8 @@ class Connection(object):
         return verification
 
     def verification_get(self, verification_uuid, session=None):
-        verification = (self.model_query(models.Verification, session=session).
-                        filter_by(uuid=verification_uuid).first())
+        verification = self.model_query(models.Verification, session=session).\
+            filter_by(uuid=verification_uuid).first()
         if not verification:
             raise exceptions.NotFoundException(
                 "Can't find any verification with following UUID '%s'." %
@@ -259,9 +272,9 @@ class Connection(object):
         return query.all()
 
     def verification_delete(self, verification_uuid):
-        count = (self.model_query(models.Verification).
-                 filter_by(id=verification_uuid).
-                 delete(synchronize_session=False))
+        count = self.model_query(models.Verification).\
+                        filter_by(id=verification_uuid).\
+                        delete(synchronize_session=False)
         if not count:
             raise exceptions.NotFoundException(
                 "Can't find any verification with following UUID '%s'." %
@@ -275,8 +288,8 @@ class Connection(object):
         return result
 
     def verification_result_get(self, verification_uuid):
-        result = (self.model_query(models.VerificationResult).
-                  filter_by(verification_uuid=verification_uuid).first())
+        result = self.model_query(models.VerificationResult).\
+            filter_by(verification_uuid=verification_uuid).first()
         if not result:
             raise exceptions.NotFoundException(
                 "No results for following UUID '%s'." % verification_uuid)

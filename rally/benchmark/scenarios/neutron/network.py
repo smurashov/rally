@@ -15,16 +15,13 @@
 
 from rally.benchmark.scenarios import base
 from rally.benchmark.scenarios.neutron import utils
-from rally.benchmark import validation
-from rally import consts
 
 
 class NeutronNetworks(utils.NeutronScenario):
 
     @base.scenario(context={"cleanup": ["neutron"]})
-    @validation.required_services(consts.Service.NEUTRON)
-    def create_and_list_networks(self, network_create_args=None):
-        """Create a network and then listing all networks.
+    def create_and_list_networks(self, network_data=None):
+        """Tests creating a network and then listing all networks.
 
         This scenario is a very useful tool to measure
         the "neutron net-list" command performance.
@@ -35,84 +32,26 @@ class NeutronNetworks(utils.NeutronScenario):
         performance of the "neutron net-list" command depending on
         the number of networks owned by users.
 
-        :param network_create_args: dict, POST /v2.0/networks request options
+        :param network_data: dict, network options
         """
-        self._create_network(network_create_args or {})
+        self._create_network(network_data or {})
         self._list_networks()
 
     @base.scenario(context={"cleanup": ["neutron"]})
-    @validation.add(validation.required_parameters(['subnets_per_network']))
-    @validation.required_services(consts.Service.NEUTRON)
     def create_and_list_subnets(self,
-                                network_create_args=None,
-                                subnet_create_args=None,
-                                subnet_cidr_start=None,
-                                subnets_per_network=None):
-        """Test creating and listing a given number of subnets.
+                                network_data=None,
+                                subnet_data=None,
+                                subnets_per_network=1):
+        """Tests creating a network, a given number of subnets
+        and then list subnets.
 
-        The scenario creates a network, a given number of subnets and then
-        lists subnets.
-
-        :param network_create_args: dict, POST /v2.0/networks request options
-        :param subnet_create_args: dict, POST /v2.0/subnets request options
-        :param subnet_cidr_start: str, start value for subnets CIDR
+        :param network_data: dict, network options
+        :param subnet_data: dict, subnet options
         :param subnets_per_network: int, number of subnets for one network
         """
-        if subnet_cidr_start:
-            NeutronNetworks.SUBNET_CIDR_START = subnet_cidr_start
-        network = self._create_network(network_create_args or {})
+
+        network = self._create_network(network_data or {})
         for i in range(subnets_per_network):
-            self._create_subnet(network, subnet_create_args or {})
+            self._create_subnet(network, subnet_data or {})
 
         self._list_subnets()
-
-    @base.scenario(context={"cleanup": ["neutron"]})
-    @validation.add(validation.required_parameters(['subnets_per_network']))
-    @validation.required_services(consts.Service.NEUTRON)
-    def create_and_list_routers(self,
-                                network_create_args=None,
-                                subnet_create_args=None,
-                                subnet_cidr_start=None,
-                                subnets_per_network=None,
-                                router_create_args=None):
-        """Test creating and listing a given number of routers.
-
-        Create a network, a given number of subnets and routers
-        and then list all routers.
-
-        :param network_create_args: dict, POST /v2.0/networks request options
-        :param subnet_create_args: dict, POST /v2.0/subnets request options
-        :param subnet_cidr_start: str, start value for subnets CIDR
-        :param subnets_per_network: int, number of subnets for one network
-        :param router_create_args: dict, POST /v2.0/routers request options
-        """
-        if subnet_cidr_start:
-            NeutronNetworks.SUBNET_CIDR_START = subnet_cidr_start
-        network = self._create_network(network_create_args or {})
-        for i in range(subnets_per_network):
-            subnet = self._create_subnet(network, subnet_create_args or {})
-            router = self._create_router(router_create_args or {})
-            self.clients("neutron").add_interface_router(
-                router["router"]["id"],
-                {"subnet_id": subnet["subnet"]["id"]})
-
-        self._list_routers()
-
-    @base.scenario(context={"cleanup": ["neutron"]})
-    @validation.add(validation.required_parameters(["ports_per_network"]))
-    @validation.required_services(consts.Service.NEUTRON)
-    def create_and_list_ports(self,
-                              network_create_args=None,
-                              port_create_args=None,
-                              ports_per_network=None):
-        """Test creating and listing a given number of ports.
-
-        :param network_create_args: dict, POST /v2.0/networks request options
-        :param port_create_args: dict, POST /v2.0/ports request options
-        :param ports_per_network: int, number of ports for one network
-        """
-        network = self._create_network(network_create_args or {})
-        for i in range(ports_per_network):
-            self._create_port(network, port_create_args or {})
-
-        self._list_ports()

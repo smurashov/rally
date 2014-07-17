@@ -36,12 +36,7 @@ class Tempest(base.Context):
     @utils.log_task_wrapper(LOG.info, _("Enter context: `tempest`"))
     def setup(self):
         self.verifier = tempest.Tempest(self.task.task.deployment_uuid)
-        self.verifier.log_file_raw = "/dev/null"
-        # Create temporary directory for subunit-results.
-        self.results_dir = os.path.join(
-            tempfile.gettempdir(), "%s-results" % self.task.task.uuid)
-        os.mkdir(self.results_dir)
-        self.context["tmp_results_dir"] = self.results_dir
+        self.verifier.log_file = "/dev/null"
 
         try:
             if not self.verifier.is_installed():
@@ -59,6 +54,12 @@ class Tempest(base.Context):
 
         self.context["verifier"] = self.verifier
 
+        # Create temporary directory for xml-results.
+        self.results_dir = os.path.join(
+            tempfile.gettempdir(), "%s-results" % self.task.task.uuid)
+        os.mkdir(self.results_dir)
+        self.context["tmp_results_dir"] = self.results_dir
+
     @utils.log_task_wrapper(LOG.info, _("Exit context: `tempest`"))
     def cleanup(self):
         try:
@@ -73,6 +74,4 @@ class Tempest(base.Context):
                                   cwd=self.verifier.tempest_path)
         except subprocess.CalledProcessError:
             LOG.error("Tempest cleanup failed.")
-
-        if os.path.exists(self.results_dir):
-            shutil.rmtree(self.results_dir)
+        shutil.rmtree(self.results_dir)

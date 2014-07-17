@@ -47,7 +47,7 @@ def destroy_deploy(deploy_uuid):
     # TODO(akscram): We have to be sure that there are no running
     #                tasks for this deployment.
     # TODO(akscram): Check that the deployment have got a status that
-    #                is equal to "*->finished" or "deploy->inconsistent".
+    #                is equal to "*->finised" or "deploy->inconsistent".
     deployment = objects.Deployment.get(deploy_uuid)
     deployer = deploy.EngineFactory.get_engine(deployment['config']['type'],
                                                deployment)
@@ -95,8 +95,6 @@ def start_task(deploy_uuid, config, task=None):
     """
     deployment = objects.Deployment.get(deploy_uuid)
     task = task or objects.Task(deployment_uuid=deploy_uuid)
-    LOG.info("Benchmark Task %s on Deployment %s" % (task['uuid'],
-                                                     deployment['uuid']))
     benchmark_engine = engine.BenchmarkEngine(config, task)
     endpoint = deployment['endpoints']
 
@@ -143,9 +141,9 @@ def verify(deploy_id, set_name, regex):
     verification = objects.Verification(deployment_uuid=deploy_id)
     verifier = tempest.Tempest(deploy_id, verification=verification)
     if not verifier.is_installed():
-        print("Tempest is not installed for specified deployment.")
-        print("Installing Tempest for deployment %s" % deploy_id)
-        verifier.install()
+        print("Tempest is not installed for specified deployment. "
+              "Please use 'rally-manage tempest install'")
+        return
     LOG.info("Starting verification of deployment: %s" % deploy_id)
 
     verification.set_running()

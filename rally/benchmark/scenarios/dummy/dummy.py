@@ -14,7 +14,7 @@ import random
 import time
 
 from rally.benchmark.scenarios import base
-from rally.benchmark import validation
+from rally.benchmark import validation as valid
 from rally import exceptions
 
 
@@ -34,8 +34,10 @@ class Dummy(base.Scenario):
         if sleep:
             time.sleep(sleep)
 
-    @validation.add(validation.number("size_of_message", minval=1,
-                                      integer_only=True, nullable=True))
+    @valid.add_validator(valid.number("size_of_message",
+                                      minval=1,
+                                      integer_only=True,
+                                      nullable=True))
     @base.scenario()
     def dummy_exception(self, size_of_message=1):
         """Test if exceptions are processed properly.
@@ -49,8 +51,10 @@ class Dummy(base.Scenario):
 
         raise exceptions.DummyScenarioException("M" * size_of_message)
 
-    @validation.add(validation.number("exception_probability", minval=0,
-                                      maxval=1, integer_only=False,
+    @valid.add_validator(valid.number("exception_probability",
+                                      minval=0,
+                                      maxval=1,
+                                      integer_only=False,
                                       nullable=True))
     @base.scenario()
     def dummy_exception_probability(self, exception_probability=0.5):
@@ -68,12 +72,3 @@ class Dummy(base.Scenario):
                 "Dummy Scenario Exception: Probability: %s"
                 % exception_probability
             )
-
-    @base.scenario()
-    def dummy_with_scenario_output(self):
-        out = {
-            'value_1': random.randint(1, 100),
-            'value_2': random.random()
-        }
-        err = ""
-        return {"data": out, "errors": err}

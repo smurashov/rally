@@ -14,24 +14,19 @@
 #    under the License.
 
 import datetime
-import inspect
-import logging
+import httplib
 import os
-import time
-import urlparse
-
 from oslo.config import cfg
-import requests
 from six.moves import configparser
+import time
+import urllib2
+import urlparse
 
 from rally import db
 from rally import exceptions
 from rally.objects import endpoint
 from rally.openstack.common.gettextutils import _
 from rally import osclients
-
-
-LOG = logging.getLogger(__name__)
 
 
 image_opts = [
@@ -54,9 +49,8 @@ class TempestConf(object):
         try:
             self.keystoneclient = self.clients.verified_keystone()
         except exceptions.InvalidAdminException:
-            msg = (_("Admin permission is required to generate tempest "
-                     "configuration file. User %s doesn't have admin role.") %
-                   self.endpoint['username'])
+            msg = _('Admin permission is required to run tempest. User %s '
+                    'doesn\'t have admin role') % self.endpoint['username']
             raise exceptions.TempestConfigCreationFailure(message=msg)
         self.available_services = [service['name'] for service in
                                    self.keystoneclient.
@@ -78,20 +72,16 @@ class TempestConf(object):
                       (CONF.image.cirros_version,
                        CONF.image.cirros_image))
         try:
-            response = requests.get(cirros_url, stream=True)
-        except requests.ConnectionError as err:
+            response = urllib2.urlopen(cirros_url)
+        except urllib2.URLError as err:
             msg = _('Error on downloading cirros image, possibly'
                     ' no connection to Internet with message %s') % str(err)
             raise exceptions.TempestConfigCreationFailure(message=msg)
-        if response.status_code == 200:
-            with open(self.img_path + '.tmp', 'wb') as img_file:
-                for chunk in response.iter_content(chunk_size=1024):
-                    if chunk:   # filter out keep-alive new chunks
-                        img_file.write(chunk)
-                        img_file.flush()
-            os.rename(self.img_path + '.tmp', self.img_path)
+        if response.getcode() == httplib.OK:
+            with open(self.img_path, 'wb') as img_file:
+                img_file.write(response.read())
         else:
-            if response.status_code == 404:
+            if response.getcode() == httplib.NOT_FOUND:
                 msg = _('Error on downloading cirros image, possibly'
                         'invalid cirros_version or cirros_image in rally.conf')
             else:
@@ -111,14 +101,14 @@ class TempestConf(object):
             os.makedirs(lock_path)
         self.conf.set('DEFAULT', 'lock_path', lock_path)
 
-    def _set_boto(self, section_name='boto'):
-        self.conf.set(section_name, 'ec2_url', self._get_url('ec2'))
-        self.conf.set(section_name, 's3_url', self._get_url('s3'))
+    def _set_boto(self):
+        self.conf.set('boto', 'ec2_url', self._get_url('ec2'))
+        self.conf.set('boto', 's3_url', self._get_url('s3'))
         matherials_path = os.path.join(self.data_path, 's3matherials')
-        self.conf.set(section_name, 's3_materials_path', matherials_path)
+        self.conf.set('boto', 's3_materials_path', matherials_path)
         # TODO(olkonami): find out how can we get ami, ari, aki manifest files
 
-    def _set_compute_images(self, section_name='compute'):
+    def _set_compute_images(self):
         glanceclient = self.clients.glance()
         image_list = [img for img in glanceclient.images.list()
                       if img.status.lower() == 'active' and
@@ -139,10 +129,10 @@ class TempestConf(object):
                         'new image could not be created.\n'
                         'Reason: %s') % e.message
                 raise exceptions.TempestConfigCreationFailure(message=msg)
-        self.conf.set(section_name, 'image_ref', image_list[0].id)
-        self.conf.set(section_name, 'image_ref_alt', image_list[1].id)
+        self.conf.set('compute', 'image_ref', image_list[0].id)
+        self.conf.set('compute', 'image_ref_alt', image_list[1].id)
 
-    def _set_compute_flavors(self, section_name='compute'):
+    def _set_compute_flavors(self):
         novaclient = self.clients.nova()
         flavor_list = sorted(novaclient.flavors.list(),
                              key=lambda flv: flv.ram)
@@ -158,37 +148,34 @@ class TempestConf(object):
                         'new flavor could not be created.\n'
                         'Reason: %s') % e.message
                 raise exceptions.TempestConfigCreationFailure(message=msg)
-        self.conf.set(section_name, 'flavor_ref', flavor_list[0].id)
-        self.conf.set(section_name, 'flavor_ref_alt', flavor_list[1].id)
+        self.conf.set('compute', 'flavor_ref', flavor_list[0].id)
+        self.conf.set('compute', 'flavor_ref_alt', flavor_list[1].id)
 
-    def _set_compute_ssh_connect_method(self, section_name='compute'):
+    def _set_compute_ssh_connect_method(self):
         if 'neutron' in self.available_services:
-            self.conf.set(section_name, 'ssh_connect_method', 'floating')
+            self.conf.set('compute', 'ssh_connect_method', 'floating')
         else:
-            self.conf.set(section_name, 'ssh_connect_method', 'fixed')
+            self.conf.set('compute', 'ssh_connect_method', 'fixed')
 
-    def _set_compute_admin(self, section_name='compute-admin'):
-        self.conf.set(section_name, 'username', self.endpoint['username'])
-        self.conf.set(section_name, 'password', self.endpoint['password'])
-        self.conf.set(section_name, 'tenant_name',
+    def _set_compute_admin(self):
+        self.conf.set('compute-admin', 'username', self.endpoint['username'])
+        self.conf.set('compute-admin', 'password', self.endpoint['password'])
+        self.conf.set('compute-admin', 'tenant_name',
                       self.endpoint['tenant_name'])
 
-    def _set_identity(self, section_name='identity'):
-        self.conf.set(section_name, 'username', self.endpoint['username'])
-        self.conf.set(section_name, 'password', self.endpoint['password'])
-        self.conf.set(section_name, 'tenant_name',
+    def _set_identity(self):
+        self.conf.set('identity', 'username', self.endpoint['username'])
+        self.conf.set('identity', 'password', self.endpoint['password'])
+        self.conf.set('identity', 'tenant_name', self.endpoint['tenant_name'])
+        self.conf.set('identity', 'admin_username', self.endpoint['username'])
+        self.conf.set('identity', 'admin_password', self.endpoint['password'])
+        self.conf.set('identity', 'admin_tenant_name',
                       self.endpoint['tenant_name'])
-        self.conf.set(section_name, 'admin_username',
-                      self.endpoint['username'])
-        self.conf.set(section_name, 'admin_password',
-                      self.endpoint['password'])
-        self.conf.set(section_name, 'admin_tenant_name',
-                      self.endpoint['tenant_name'])
-        self.conf.set(section_name, 'uri', self.endpoint['auth_url'])
-        self.conf.set(section_name, 'uri_v3',
+        self.conf.set('identity', 'uri', self.endpoint['auth_url'])
+        self.conf.set('identity', 'uri_v3',
                       self.endpoint['auth_url'].replace('/v2.0', '/v3'))
 
-    def _set_network(self, section_name='network'):
+    def _set_network(self):
         if 'neutron' in self.available_services:
             neutron = self.clients.neutron()
             public_net = [net for net in neutron.list_networks()['networks'] if
@@ -196,51 +183,40 @@ class TempestConf(object):
                           net['router:external'] is True]
             if public_net:
                 net_id = public_net[0]['id']
-                self.conf.set(section_name, 'public_network_id', net_id)
-                public_router = neutron.list_routers(
-                    network_id=net_id)['routers'][0]
-                self.conf.set(section_name, 'public_router_id',
+                self.conf.set('network', 'public_network_id', net_id)
+                public_router = neutron.list_routers(network_id=
+                                                     net_id)['routers'][0]
+                self.conf.set('network', 'public_router_id',
                               public_router['id'])
-                subnets = neutron.list_subnets(network_id=net_id)['subnets']
-                if subnets:
-                    subnet = subnets[0]
-                else:
-                    # TODO(akurilin): create public subnet
-                    LOG.warn('No public subnet is found.')
+                subnet = neutron.list_subnets(network_id=net_id)['subnets'][0]
             else:
-                subnets = neutron.list_subnets()
-                if subnets:
-                    subnet = subnets[0]
-                else:
-                    # TODO(akurilin): create subnet
-                    LOG.warn('No subnet is found.')
-            self.conf.set(section_name, 'default_network', subnet['cidr'])
+                subnet = neutron.list_subnets()[0]
+            self.conf.set('network', 'default_network', subnet['cidr'])
         else:
             network = self.clients.nova().networks.list()[0]
-            self.conf.set(section_name, 'default_network', network.cidr)
+            self.conf.set('network', 'default_network', network.cidr)
 
-    def _set_service_available(self, section_name='service_available'):
+    def _set_service_available(self):
         services = ['neutron', 'heat', 'ceilometer', 'swift',
                     'cinder', 'nova', 'glance']
         for service in services:
-            self.conf.set(section_name, service,
+            self.conf.set('service_available', service,
                           str(service in self.available_services))
         horizon_url = ('http://' +
                        urlparse.urlparse(self.endpoint['auth_url']).hostname)
-        horizon_availability = (requests.get(horizon_url).status_code == 200)
+        answer_code = urllib2.urlopen(horizon_url).getcode()
         # convert boolean to string because ConfigParser fails
         # on attempt to get option with boolean value
-        self.conf.set(section_name, 'horizon', str(horizon_availability))
+        self.conf.set('service_available', 'horizon',
+                      str(answer_code == httplib.OK))
 
-    def write_config(self, file_name):
-        with open(file_name, "w+") as f:
-            self.conf.write(f)
-
-    def generate(self, file_name=None):
-        for name, func in inspect.getmembers(self, predicate=inspect.ismethod):
-            if name.startswith('_set_'):
-                func(self)
-        if file_name:
-            self.write_config(file_name)
-
+    def generate(self):
+        self._set_default()
+        self._set_boto()
+        self._set_compute_images()
+        self._set_compute_flavors()
+        self._set_compute_admin()
+        self._set_identity()
+        self._set_network()
+        self._set_service_available()
         return self.conf

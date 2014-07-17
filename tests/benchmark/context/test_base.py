@@ -125,8 +125,7 @@ class ContextManagerTestCase(test.TestCase):
 
         mock_magic.return_value = 5
 
-        result = base.ContextManager.run(context, lambda x, y: x + y, type,
-                                         "fake_method", {"fake": "value"})
+        result = base.ContextManager.run(context, lambda x, y: x + y, 1, 2)
         self.assertEqual(result, 5)
 
         mock_get.assert_has_calls([
@@ -149,23 +148,6 @@ class ContextManagerTestCase(test.TestCase):
             mock.call().validate(config["ctx1"], non_hidden=False),
             mock.call("ctx2"),
             mock.call().validate(config["ctx2"], non_hidden=False)
-        ])
-
-    @mock.patch("rally.benchmark.context.base.Context.get_by_name")
-    def test_validate_semantic(self, mock_get):
-        config = {
-            "ctx1": mock.MagicMock(),
-            "ctx2": mock.MagicMock()
-        }
-
-        base.ContextManager.validate_semantic(config)
-        mock_get.assert_has_calls([
-            mock.call("ctx1"),
-            mock.call().validate_semantic(config["ctx1"], admin=None,
-                                          users=None, task=None),
-            mock.call("ctx2"),
-            mock.call().validate_semantic(config["ctx2"], admin=None,
-                                          users=None, task=None)
         ])
 
     @mock.patch("rally.benchmark.context.base.Context.get_by_name")

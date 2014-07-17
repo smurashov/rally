@@ -16,7 +16,6 @@
 import mock
 
 from rally.benchmark.context import roles
-from rally import exceptions
 from tests import fakes
 from tests import test
 
@@ -72,10 +71,10 @@ class RoleGeneratorTestCase(test.TestCase):
         ctx = roles.RoleGenerator(self.context)
         ctx.context["users"] = [{"id": "u1", "tenant_id": "t1"},
                                 {"id": "u2", "tenant_id": "t2"}]
-        ex = self.assertRaises(exceptions.NoSuchRole, ctx._add_role,
+        ex = self.assertRaises(Exception, ctx._add_role,
                                mock.MagicMock(), "unknown_role")
 
-        expected = "There is no role with name `unknown_role`."
+        expected = "Role 'unknown_role' does not exist in the list of roles"
         self.assertEqual(expected, str(ex))
 
     @mock.patch("rally.benchmark.context.roles.osclients")
@@ -89,8 +88,8 @@ class RoleGeneratorTestCase(test.TestCase):
                 mock.call("u1", role["id"], tenant="t1"),
                 mock.call("u2", role["id"], tenant="t2"),
         ]
-        mock_keystone = mock_osclients.Clients().keystone()
-        mock_keystone.roles.remove_user_role.assert_has_calls(calls)
+        mock_osclients.Clients().keystone()\
+            .roles.remove_user_role.assert_has_calls(calls)
 
     @mock.patch("rally.benchmark.context.roles.osclients")
     def test_setup_and_cleanup(self, mock_osclients):
@@ -102,6 +101,7 @@ class RoleGeneratorTestCase(test.TestCase):
             ctx.context["users"] = [{"id": "u1", "tenant_id": "t1"},
                                     {"id": "u2", "tenant_id": "t2"}]
 
+            #self, user_id, role_id, tenant):
             ctx.setup()
             calls = [
                 mock.call("u1", "r1", tenant="t1"),

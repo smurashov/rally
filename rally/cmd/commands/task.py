@@ -16,17 +16,17 @@
 """ Rally command: task """
 
 from __future__ import print_function
+
 import json
 import os
 import pprint
 import webbrowser
+import yaml
 
 from oslo.config import cfg
-import yaml
 
 from rally.benchmark.processing import plot
 from rally.benchmark.processing import utils
-from rally.benchmark.sla import base as base_sla
 from rally.cmd import cliutils
 from rally.cmd.commands import use
 from rally.cmd import envutils
@@ -70,9 +70,6 @@ class TaskCommands(object):
                     use.UseCommands().task(task['uuid'])
             except exceptions.InvalidConfigException:
                 return(1)
-            except KeyboardInterrupt:
-                api.abort_task(task['uuid'])
-                raise
 
     @cliutils.args('--uuid', type=str, dest='task_id', help='UUID of task')
     @envutils.with_default_task_id
@@ -238,14 +235,16 @@ class TaskCommands(object):
             # NOTE(hughsaunders): ssrs=scenario specific results
             ssrs = []
             for result in raw:
-                data = result["scenario_output"].get("data")
-                if data:
-                    ssrs.append(data)
+                try:
+                    ssrs.append(result['scenario_output']['data'])
+                except (KeyError, TypeError):
+                    # No SSRs in this result
+                    pass
             if ssrs:
                 keys = set()
                 for ssr in ssrs:
                     keys.update(ssr.keys())
-                headers = ["key", "max", "avg", "min",
+                headers = ["Key", "max", "avg", "min",
                            "90 pecentile", "95 pecentile"]
                 float_cols = ["max", "avg", "min",
                               "90 pecentile", "95 pecentile"]
@@ -272,9 +271,8 @@ class TaskCommands(object):
                                            formatters=formatters)
 
                 for result in raw:
-                    errors = result["scenario_output"].get("errors")
-                    if errors:
-                        print(errors)
+                    if result['scenario_output']['errors']:
+                        print(result['scenario_output']['errors'])
 
         print()
         print("HINTS:")
@@ -316,9 +314,7 @@ class TaskCommands(object):
         headers = ['uuid', 'created_at', 'status', 'failed', 'tag']
         task_list = task_list or db.task_list()
         if task_list:
-            common_cliutils.print_list(task_list, headers,
-                                       sortby_index=headers.index(
-                                           'created_at'))
+            common_cliutils.print_list(task_list, headers)
         else:
             print(_("There are no tasks. To run a new task, use:"
                     "\nrally task start"))
@@ -356,27 +352,3 @@ class TaskCommands(object):
                 api.delete_task(tid, force=force)
         else:
             api.delete_task(task_id, force=force)
-
-    @cliutils.args("--uuid", type=str, dest="task_id", help="uuid of task")
-    @cliutils.args("--json", dest="tojson",
-                   action="store_true",
-                   help="output in json format")
-    @envutils.with_default_task_id
-    def sla_check(self, task_id=None, tojson=False):
-        """Check if task was succeded according to SLA.
-
-        :param task_id: Task uuid.
-        :returns: Number of failed criteria.
-        """
-        task = db.task_get_detailed(task_id)
-        failed_criteria = 0
-        rows = []
-        for row in base_sla.SLA.check_all(task):
-            failed_criteria += 0 if row['success'] else 1
-            rows.append(row if tojson else rutils.Struct(**row))
-        if tojson:
-            print(json.dumps(rows))
-        else:
-            common_cliutils.print_list(rows, ('benchmark', 'pos',
-                                              'criterion', 'success'))
-        return failed_criteria

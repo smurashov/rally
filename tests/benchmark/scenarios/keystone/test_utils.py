@@ -17,8 +17,10 @@ import mock
 
 from rally.benchmark.scenarios.keystone import utils
 from tests.benchmark.scenarios import test_utils
-from tests import fakes
 from tests import test
+
+from tests import fakes
+
 
 UTILS = "rally.benchmark.scenarios.keystone.utils."
 

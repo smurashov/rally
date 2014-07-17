@@ -26,15 +26,14 @@ from rally import utils
 class Context(object):
     """This class is a factory for context classes.
 
-    Every context class should be a subclass of this class and implement
-    2 abstract methods: setup() and cleanup()
+        Every context class should be a subclass of this method and implement
+        2 abstract methods: setup() and cleanup()
 
-    It covers:
-        1) proper setting up of context config
-        2) Auto discovering & get by name
-        3) Validation by CONFIG_SCHEMA
-        4) Order of context creation
-
+        It covers:
+            1) proper setting up of context config
+            2) Auto discovering & get by name
+            3) Validation by CONFIG_SCHEMA
+            4) Order of context creation
     """
     __ctx_name__ = "base"
     __ctx_order__ = 0
@@ -53,14 +52,9 @@ class Context(object):
             raise exceptions.NoSuchContext(name=cls.__ctx_name__)
         jsonschema.validate(config, cls.CONFIG_SCHEMA)
 
-    @classmethod
-    def validate_semantic(cls, config, admin=None, users=None, task=None):
-        """Context semantic validation towards the deployment."""
-        pass
-
     @staticmethod
     def get_by_name(name):
-        """Return Context class by name."""
+        """Returns Context class by name."""
         for context in utils.itersubclasses(Context):
             if name == context.__ctx_name__:
                 return context
@@ -68,11 +62,11 @@ class Context(object):
 
     @abc.abstractmethod
     def setup(self):
-        """Set context of benchmark."""
+        """This method sets context of benchmark."""
 
     @abc.abstractmethod
     def cleanup(self):
-        """Clean context of benchmark."""
+        """This method cleans context of benchmark."""
 
     def __enter__(self):
         return self
@@ -82,16 +76,15 @@ class Context(object):
 
 
 class ContextManager(object):
-    """Create context environment and run method inside it."""
+    """Creates context environment and runs method inside it."""
 
     @staticmethod
-    def run(context, func, cls, method_name, args):
+    def run(context, func, *args, **kwargs):
         ctxlst = [Context.get_by_name(name) for name in context["config"]]
         ctxlst = map(lambda ctx: ctx(context),
                      sorted(ctxlst, key=lambda x: x.__ctx_order__))
 
-        return ContextManager._magic(ctxlst, func, cls,
-                                     method_name, context, args)
+        return ContextManager._magic(ctxlst, func, *args, **kwargs)
 
     @staticmethod
     def validate(context, non_hidden=False):
@@ -99,13 +92,7 @@ class ContextManager(object):
             Context.get_by_name(name).validate(config, non_hidden=non_hidden)
 
     @staticmethod
-    def validate_semantic(context, admin=None, users=None, task=None):
-        for name, config in context.iteritems():
-            Context.get_by_name(name).validate_semantic(config, admin=admin,
-                                                        users=users, task=task)
-
-    @staticmethod
-    def _magic(ctxlst, func, *args):
+    def _magic(ctxlst, func, *args, **kwargs):
         """Some kind of contextlib.nested but with black jack & recursion.
 
         This method uses recursion to build nested "with" from list of context
@@ -115,15 +102,16 @@ class ContextManager(object):
         :param ctxlst: list of instances of subclasses of Context
         :param func: function that will be called inside this context
         :param args: args that will be passed to function `func`
+        :param kwargs: kwargs that will be passed to function `func`
         :returns: result of function call
         """
         if not ctxlst:
-            return func(*args)
+            return func(*args, **kwargs)
 
         with ctxlst[0]:
             # TODO(boris-42): call of setup could be moved inside __enter__
             #                 but it should be in try-except, and in except
             #                 we should call by hand __exit__
             ctxlst[0].setup()
-            tmp = ContextManager._magic(ctxlst[1:], func, *args)
+            tmp = ContextManager._magic(ctxlst[1:], func, *args, **kwargs)
             return tmp

@@ -15,27 +15,39 @@
 
 .. _deploy:
 
-Deploy
-======
+The Deployment Layer
+====================
 
-Deployment engines
-==================
+Represents a set of deployment engines. An each deployment engine provide some
+kind of technique of installation of OpenStack. Also there is an abstract base
+class of deployment engine.
 
-One of the core entities in Rally architecture are the **Deploy engines**. The main task of a deploy engine is to control the process of **deploying some OpenStack distribution** like *DevStack* or *FUEL* before any benchmarking procedures take place. Every deploy engine should implement the following fairly simple interface:
+The :mod:`rally.deploy.engine` Module
+-------------------------------------
 
-* **constuctor**, which takes a **deployment** entity as its only parameter;
-* **deploy()**, which should deploy the appropriate OpenStack distribution given the cloud config from the deployment object the engine was initialized with (possibly using one of available **server providers**). The method should also return a dictionary with endpoints of the deployed OpenStack distribution;
-* **cleanup()**, which should clean up the OpenStack deployment (again, possibly using one of available **server providers**).
+.. automodule:: rally.deploy.engine
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
+The DevStack Engine
+-------------------
 
+The :mod:`rally.deploy.engines.devstack` Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Server Providers
-================
+.. automodule:: rally.deploy.engines.devstack
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
-**Server providers** in Rally are typically used by **deploy engines** to manage virtual machines necessary for OpenStack deployment and its following benchmarking. The key feature of server providers is that they provide a **unified interface** for interacting with different **virtualization technologies** (*LXS*, *Virsh* etc.) and **cloud suppliers** (like *Amazon*).
+The Dummy Engine
+----------------
 
-Every server provider should implement the following basic interface:
+The :mod:`rally.deploy.engines.dummy` Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* **constructor**, which should take the **deployment** entity the provider should bind to and a **config** dictionary as its parameters;
-* **create_servers(image_uuid, type_id, amount)**, which should create the requested number of virtual machines of the given type using a specific image. The method should also return the list of created servers wrapped in special *Server* entities.
-* **destroy_servers()**, which should destroy all virtual machines previously created by the same server provider.
+.. automodule:: rally.deploy.engines.dummy
+    :members:
+    :undoc-members:
+    :show-inheritance:

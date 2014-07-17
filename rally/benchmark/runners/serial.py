@@ -50,8 +50,12 @@ class SerialScenarioRunner(base.ScenarioRunner):
     def _run_scenario(self, cls, method_name, context, args):
         times = self.config.get('times', 1)
 
+        results = []
+
         for i in range(times):
             run_args = (i, cls, method_name,
                         base._get_scenario_context(context), args)
             result = base._run_scenario_once(run_args)
-            self._send_result(result)
+            results.append(result)
+
+        return base.ScenarioRunnerResult(results)

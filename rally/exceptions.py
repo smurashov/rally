@@ -14,9 +14,8 @@
 #    under the License.
 
 
-import sys
-
 from oslo.config import cfg
+import sys
 
 from rally.openstack.common.gettextutils import _
 from rally.openstack.common import log as logging
@@ -108,8 +107,8 @@ class NotFoundScenarios(InvalidTaskException):
 
 class InvalidBenchmarkConfig(InvalidTaskException):
     msg_fmt = _("Task config is invalid.\n"
-                "\tBenchmark %(name)s has wrong configuration at"
-                " position %(pos)s"
+                "\tBenchmark %(name)s has wrong configuration of args at"
+                " position %(pos)s: %(args)s"
                 "\n\tReason: %(reason)s")
 
 
@@ -143,10 +142,6 @@ class NoSuchContext(NotFoundException):
 
 class NoSuchConfigField(NotFoundException):
     msg_fmt = _("There is no field in the task config with name `%(name)s`.")
-
-
-class NoSuchRole(NotFoundException):
-    msg_fmt = _("There is no role with name `%(role)s`.")
 
 
 class TaskNotFound(NotFoundException):
@@ -184,10 +179,6 @@ class GetResourceErrorStatus(GetResourceFailure):
 
 class SSHError(RallyException):
     msg_fmt = _("Remote command failed.")
-
-
-class ScriptError(RallyException):
-    msg_fmt = _("Script execution failed.")
 
 
 class TaskInvalidStatus(RallyException):
@@ -246,12 +237,3 @@ class NoNodesFound(RallyException):
 
 class UnknownRelease(RallyException):
     msg_fmt = _("Unknown release '%(release)s'")
-
-
-class ImageCleanUpException(RallyException):
-    msg_fmt = _("Image Deletion Failed")
-
-
-class IncompatiblePythonVersion(RallyException):
-    msg_fmt = _("Incompatible python version found '%(version)s', "
-                "required at least python>=2.7.x")

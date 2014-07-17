@@ -13,9 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import os
-
 import decorator
+import os
 
 from rally import exceptions
 from rally import fileutils

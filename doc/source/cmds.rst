@@ -15,8 +15,8 @@
 
 .. _cmds:
 
-Command Line Interface
-======================
+The Command Line Interface Layer
+================================
 
 Represents command line operations.
 

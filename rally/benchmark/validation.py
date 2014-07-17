@@ -19,7 +19,6 @@ import os
 from glanceclient import exc as glance_exc
 from novaclient import exceptions as nova_exc
 
-from rally.benchmark import types as types
 from rally import consts
 from rally.openstack.common.gettextutils import _
 from rally.verification.verifiers.tempest import tempest
@@ -32,36 +31,7 @@ class ValidationResult(object):
         self.msg = msg
 
 
-def validator(fn):
-    """Decorator that constructs a scenario validator from given function.
-
-    Decorated function should return ValidationResult on error.
-
-    :param fn: function that performs validation
-    :returns: rally scenario validator
-    """
-    def wrap_given(*args, **kwargs):
-        def wrap_validator(**options):
-            options.update({"args": args, "kwargs": kwargs})
-            # NOTE(amaretskiy): validator is successful by default
-            return fn(*args, **options) or ValidationResult()
-
-        def wrap_scenario(scenario):
-            # NOTE(amaretskiy): user permission by default
-            wrap_validator.permission = getattr(
-                fn, "permission", consts.EndpointPermission.USER)
-            if not hasattr(scenario, "validators"):
-                scenario.validators = []
-            scenario.validators.append(wrap_validator)
-            return scenario
-
-        return wrap_scenario
-
-    return wrap_given
-
-
-# NOTE(amaretskiy): Deprecated by validator()
-def add(validator):
+def add_validator(validator):
     def wrapper(func):
         if not getattr(func, 'validators', None):
             func.validators = []
@@ -174,12 +144,10 @@ def image_exists(param_name):
                        to get image id value.
     """
     def image_exists_validator(**kwargs):
-        clients = kwargs.get('clients')
-        image_id = types.ImageResourceType.transform(
-            clients=clients,
-            resource_config=kwargs.get(param_name))
+        image_id = kwargs.get(param_name)
+        glanceclient = kwargs["clients"].glance()
         try:
-            clients.glance().images.get(image=image_id)
+            glanceclient.images.get(image=image_id)
             return ValidationResult()
         except glance_exc.HTTPNotFound:
             message = _("Image with id '%s' not found") % image_id
@@ -194,12 +162,10 @@ def flavor_exists(param_name):
                        to get flavor id value.
     """
     def flavor_exists_validator(**kwargs):
-        clients = kwargs.get('clients')
-        flavor_id = types.FlavorResourceType.transform(
-            clients=clients,
-            resource_config=kwargs.get(param_name))
+        flavor_id = kwargs.get(param_name)
+        novaclient = kwargs["clients"].nova()
         try:
-            clients.nova().flavors.get(flavor=flavor_id)
+            novaclient.flavors.get(flavor=flavor_id)
             return ValidationResult()
         except nova_exc.NotFound:
             message = _("Flavor with id '%s' not found") % flavor_id
@@ -217,22 +183,20 @@ def image_valid_on_flavor(flavor_name, image_name):
 
     """
     def image_valid_on_flavor_validator(**kwargs):
-        clients = kwargs.get('clients')
+        flavor_id = kwargs.get(flavor_name)
+        novaclient = kwargs["clients"].nova()
 
-        flavor_id = types.FlavorResourceType.transform(
-            clients=clients,
-            resource_config=kwargs.get(flavor_name))
         try:
-            flavor = clients.nova().flavors.get(flavor=flavor_id)
+            flavor = novaclient.flavors.get(flavor=flavor_id)
         except nova_exc.NotFound:
             message = _("Flavor with id '%s' not found") % flavor_id
             return ValidationResult(False, message)
 
-        image_id = types.ImageResourceType.transform(
-            clients=clients,
-            resource_config=kwargs.get(image_name))
+        image_id = kwargs.get(image_name)
+        glanceclient = kwargs["clients"].glance()
+
         try:
-            image = clients.glance().images.get(image=image_id)
+            image = glanceclient.images.get(image=image_id)
         except glance_exc.HTTPNotFound:
             message = _("Image with id '%s' not found") % image_id
             return ValidationResult(False, message)
@@ -252,48 +216,9 @@ def image_valid_on_flavor(flavor_name, image_name):
                 message = _("The disk size for flavor '%s' is too small "
                             "for requested image '%s'") % (flavor_id, image_id)
                 return ValidationResult(False, message)
+
         return ValidationResult()
     return image_valid_on_flavor_validator
-
-
-def network_exists(network_name):
-    def network_exists_validator(**kwargs):
-        network = kwargs.get(network_name, "private")
-
-        networks = [net.label for net in
-                    kwargs["clients"].nova().networks.list()]
-        if network not in networks:
-            message = _("Network with name %(network)s not found. "
-                        "Available networks: %(networks)s") % {
-                            "network": network,
-                            "networks": networks
-                        }
-            return ValidationResult(False, message)
-
-        return ValidationResult()
-    return network_exists_validator
-
-
-def external_network_exists(network_name, use_external_network):
-    def external_network_exists_validator(**kwargs):
-        if not kwargs.get(use_external_network, True):
-            return ValidationResult()
-
-        ext_network = kwargs.get(network_name, "public")
-
-        networks = [net.name for net in
-                    kwargs["clients"].nova().floating_ip_pools.list()]
-        if ext_network not in networks:
-            message = _("External (floating) network with name %(network)s "
-                        "not found. "
-                        "Available networks: %(networks)s") % {
-                            "network": ext_network,
-                            "networks": networks
-                        }
-            return ValidationResult(False, message)
-
-        return ValidationResult()
-    return external_network_exists_validator
 
 
 def tempest_tests_exists():
@@ -353,18 +278,3 @@ def required_parameters(params):
             return ValidationResult(False, message)
         return ValidationResult()
     return required_parameters_validator
-
-
-@validator
-def required_services(*args, **kwargs):
-    """Check if specified services are available.
-
-    :param args: list of servives names
-    """
-    available_services = kwargs.get("clients").services().values()
-    for service in args:
-        if service not in consts.Service:
-            return ValidationResult(False, _("Unknown service: %s") % service)
-        if service not in available_services:
-            return ValidationResult(
-                False, _("Service is not available: %s") % service)

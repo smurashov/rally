@@ -14,7 +14,6 @@
 #    under the License.
 
 from rally.benchmark.context import base
-from rally import exceptions
 from rally.openstack.common.gettextutils import _
 from rally.openstack.common import log as logging
 from rally import osclients
@@ -58,7 +57,9 @@ class RoleGenerator(base.Context):
                 role = def_role
                 break
         else:
-            raise exceptions.NoSuchRole(role=context_role)
+            msg = (_("Role '%(role)s' does not exist in the list of roles") %
+                   {"role": context_role})
+            raise Exception(msg)
 
         LOG.debug("Adding role %s to all users" % (role.id))
         for user in self.context["users"]:

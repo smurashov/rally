@@ -81,10 +81,8 @@ def calculate_number_of_bins_half(data):
 
 
 def hvariety(data):
-    """Describe methods of calculating the number of bins.
-
-    :returns: List of dictionaries, where every dictionary
-              describes a method of calculating the number of bins.
+    """Returns a list of dictionaries, where every dictionary
+    describes a method of calculating the number of bins.
     """
     if len(data) == 0:
         raise ValueError("Cannot calculate number of histrogram bins "

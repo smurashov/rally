@@ -14,9 +14,8 @@
 #    under the License.
 
 
-import uuid
-
 import mock
+import uuid
 
 from rally import consts
 from rally import deploy

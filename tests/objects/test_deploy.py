@@ -15,9 +15,8 @@
 
 """Tests for db.deploy layer."""
 
-import uuid
-
 import mock
+import uuid
 
 from rally import consts
 from rally import objects

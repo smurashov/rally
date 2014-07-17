@@ -40,19 +40,20 @@ these objects be simple dictionaries.
 """
 
 from oslo.config import cfg
-from oslo.db import api as db_api
-from oslo.db import options as db_options
+
+from rally.openstack.common.db import api as db_api
 
 
 CONF = cfg.CONF
 
 
-db_options.set_defaults(CONF, connection="sqlite:////tmp/rally.sqlite",
-                        sqlite_db="rally.sqlite")
+CONF.import_opt('backend', 'rally.openstack.common.db.options',
+                group='database')
+
 
 _BACKEND_MAPPING = {'sqlalchemy': 'rally.db.sqlalchemy.api'}
 
-IMPL = db_api.DBAPI.from_config(CONF, backend_mapping=_BACKEND_MAPPING)
+IMPL = db_api.DBAPI(CONF.database.backend, backend_mapping=_BACKEND_MAPPING)
 
 
 def db_cleanup():

@@ -12,11 +12,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import uuid
+
 from rally.benchmark.scenarios import base
 from rally.benchmark.scenarios import utils as scenario_utils
 
 
 class CeilometerScenario(base.Scenario):
+    """This class should contain base operations for benchmarking Ceilometer,
+    most of them are GET/PUT/POST/DELETE Api calls.
+    """
     RESOURCE_NAME_PREFIX = "rally_ceilometer_"
 
     def _get_alarm_dict(self, **kwargs):
@@ -25,9 +30,11 @@ class CeilometerScenario(base.Scenario):
         :param kwargs: optional parameters to create alarm
         :returns: alarm dictionary used to create an alarm
         """
-        alarm_id = self._generate_random_name()
-        alarm = {"alarm_id": alarm_id,
-                 "name": "TestAlarm-%s" % alarm_id,
+        # TODO(Aswad): Reuse _generate_random_name from base.Scenario instead
+        # of generating alarm_uuid. Ref: bp/benchmark-scenarios-for-neutron.
+        alarm_uuid = str(uuid.uuid4())
+        alarm = {"alarm_id": alarm_uuid,
+                 "name": "TestAlarm-%s" % alarm_uuid,
                  "description": "Test Alarm"}
 
         alarm.update(kwargs)
@@ -112,62 +119,3 @@ class CeilometerScenario(base.Scenario):
         samples = self.clients("ceilometer").samples.create(
             counter_name=name, **kwargs)
         return samples[0]
-
-    @scenario_utils.atomic_action_timer('ceilometer.query_alarms')
-    def _query_alarms(self, filter, orderby, limit):
-        """Query alarms with specific parameters.
-
-        If no input params are provided, it returns all the results in database
-        :param limit: optional param for maximum number of results returned
-        :param orderby: optional param for specifying ordering of results
-        :param filter: optional filter query
-        :returns: queried alarms
-        """
-        return self.clients("ceilometer").query_alarms.query(
-                filter, orderby, limit)
-
-    @scenario_utils.atomic_action_timer('ceilometer.query_alarm_history')
-    def _query_alarm_history(self, filter, orderby, limit):
-        """Query history of an alarm.
-
-        If no input params are provided, it returns all the results in database
-        :param limit: optional param for maximum number of results returned
-        :param orderby: optional param for specifying ordering of results
-        :param filter: optional filter query
-        :returns: alarm history
-        """
-        return self.clients("ceilometer").query_alarm_history.query(
-                filter, orderby, limit)
-
-    @scenario_utils.atomic_action_timer('ceilometer.create_sample')
-    def _create_sample(self, counter_name, counter_type, counter_unit,
-                       counter_volume, resource_id, **kwargs):
-        """Creates a Sample with specified parameters.
-
-        :param counter_name: specifies name of the counter
-        :param counter_type: specifies type of the counter
-        :param counter_unit: specifies name of the counter
-        :param counter_volume: specifies name of the counter
-        :param resource_id: specifies resource id for the sample created
-        :param kwargs: contains optional parameters for creating a sample
-        :returns: created sample
-        """
-        kwargs.update({"counter_name": counter_name,
-                       "counter_type": counter_type,
-                       "counter_unit": counter_unit,
-                       "counter_volume": counter_volume,
-                       "resource_id": resource_id})
-        return self.clients("ceilometer").samples.create(**kwargs)
-
-    @scenario_utils.atomic_action_timer('ceilometer.query_samples')
-    def _query_samples(self, filter, orderby, limit):
-        """Query samples with specified parameters.
-
-        If no input params are provided, it returns all the results in database
-        :param limit: optional param for maximum number of results returned
-        :param orderby: optional param for specifying ordering of results
-        :param filter: optional filter query
-        :returns: queried samples
-        """
-        return self.clients("ceilometer").query_samples.query(
-                filter, orderby, limit)

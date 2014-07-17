@@ -20,14 +20,11 @@ import time
 
 from rally import consts
 from rally import exceptions
-from rally import osclients
 from rally import utils
 
 
 def scenario(admin_only=False, context=None):
-    """Add extra fields to benchmark scenarios methods.
-
-       This method is used as decorator for the methods of benchmark scenarios
+    """This method is used as decorator for the methods of benchmark scenarios
        and it adds following extra fields to the methods.
        'is_scenario' is set to True
        'admin_only' is set to True if a scenario require admin endpoints
@@ -42,8 +39,7 @@ def scenario(admin_only=False, context=None):
 
 class Scenario(object):
     """This is base class for any benchmark scenario.
-
-       You should create subclass of this class. And your test scenarios will
+       You should create subclass of this class. And you test scenarios will
        be auto discoverable and you will be able to specify it in test config.
     """
     RESOURCE_NAME_PREFIX = ""
@@ -104,10 +100,10 @@ class Scenario(object):
             if not result.is_valid:
                 raise exceptions.InvalidScenarioArgument(message=result.msg)
 
-    @classmethod
-    def validate(cls, name, args, admin=None, users=None, task=None):
+    @staticmethod
+    def validate(name, args, admin=None, users=None, task=None):
         """Semantic check of benchmark arguments."""
-        validators = cls.meta(name, "validators", default=[])
+        validators = Scenario.meta(name, "validators", default=[])
 
         if not validators:
             return
@@ -120,10 +116,10 @@ class Scenario(object):
         # NOTE(boris-42): Potential bug, what if we don't have "admin" client
         #                 and scenario have "admin" validators.
         if admin:
-            cls._validate_helper(admin_validators, admin, args, task)
+            Scenario._validate_helper(admin_validators, admin, args, task)
         if users:
             for user in users:
-                cls._validate_helper(user_validators, user, args, task)
+                Scenario._validate_helper(user_validators, user, args, task)
 
     @staticmethod
     def meta(cls, attr_name, method_name=None, default=None):
@@ -141,22 +137,6 @@ class Scenario(object):
             cls = Scenario.get_by_name(cls_name)
         method = getattr(cls, method_name)
         return getattr(method, attr_name, default)
-
-    @classmethod
-    def preprocess(cls, method_name, context, args):
-        """Run preprocessor on scenario arguments."""
-        preprocessors = Scenario.meta(cls, method_name=method_name,
-                                      attr_name="preprocessors", default={})
-        clients = osclients.Clients(context["admin"]["endpoint"])
-
-        for src, preprocessor in preprocessors.items():
-            resource_config = args.get(src)
-            if resource_config:
-                args[src] = preprocessor.transform(
-                                clients=clients,
-                                resource_config=resource_config)
-
-        return args
 
     def context(self):
         """Returns the context of the current benchmark scenario."""

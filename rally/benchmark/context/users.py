@@ -14,7 +14,6 @@
 #    under the License.
 
 from oslo.config import cfg
-
 from rally.benchmark.context import base
 from rally.benchmark import utils
 from rally import consts

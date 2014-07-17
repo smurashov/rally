@@ -28,22 +28,6 @@ from tests import test
 
 class ScenarioHelpersTestCase(test.TestCase):
 
-    @mock.patch("rally.benchmark.runners.base.utils.format_exc")
-    def test_format_result_on_timeout(self, mock_format_exc):
-        mock_exc = mock.MagicMock()
-
-        expected = {
-            "duration": 100,
-            "idle_duration": 0,
-            "scenario_output": {"errors": "", "data": {}},
-            "atomic_actions": [],
-            "error": mock_format_exc.return_value
-        }
-
-        self.assertEqual(base.format_result_on_timeout(mock_exc, 100),
-                         expected)
-        mock_format_exc.assert_called_once_with(mock_exc)
-
     @mock.patch("rally.benchmark.runners.base.random")
     def test_get_scenario_context(self, mock_random):
         mock_random.choice = lambda x: x[1]
@@ -91,14 +75,14 @@ class ScenarioHelpersTestCase(test.TestCase):
         args = (1, fakes.FakeScenario, "do_it", context, {})
         result = base._run_scenario_once(args)
 
-        expected_result = {
+        expected_reuslt = {
             "duration": fakes.FakeTimer().duration(),
             "idle_duration": 0,
             "error": [],
-            "scenario_output": {"errors": "", "data": {}},
+            "scenario_output": {},
             "atomic_actions": []
         }
-        self.assertEqual(expected_result, result)
+        self.assertEqual(expected_reuslt, result)
 
     @mock.patch("rally.benchmark.runners.base.rutils")
     @mock.patch("rally.benchmark.runners.base.osclients")
@@ -109,14 +93,14 @@ class ScenarioHelpersTestCase(test.TestCase):
         args = (1, fakes.FakeScenario, "with_output", context, {})
         result = base._run_scenario_once(args)
 
-        expected_result = {
+        expected_reuslt = {
             "duration": fakes.FakeTimer().duration(),
             "idle_duration": 0,
             "error": [],
             "scenario_output": fakes.FakeScenario().with_output(),
             "atomic_actions": []
         }
-        self.assertEqual(expected_result, result)
+        self.assertEqual(expected_reuslt, result)
 
     @mock.patch("rally.benchmark.runners.base.rutils")
     @mock.patch("rally.benchmark.runners.base.osclients")
@@ -126,13 +110,13 @@ class ScenarioHelpersTestCase(test.TestCase):
         args = (1, fakes.FakeScenario, "something_went_wrong", context, {})
         result = base._run_scenario_once(args)
         expected_error = result.pop("error")
-        expected_result = {
+        expected_reuslt = {
             "duration": fakes.FakeTimer().duration(),
             "idle_duration": 0,
-            "scenario_output": {"errors": "", "data": {}},
+            "scenario_output": {},
             "atomic_actions": []
         }
-        self.assertEqual(expected_result, result)
+        self.assertEqual(expected_reuslt, result)
         self.assertEqual(expected_error[:2],
                          [str(Exception), "Something went wrong"])
 
@@ -163,11 +147,10 @@ class ScenarioRunnerResultTestCase(test.TestCase):
             }
         ]
 
-        self.assertEqual(config[0], base.ScenarioRunnerResult(config[0]))
-        self.assertEqual(config[1], base.ScenarioRunnerResult(config[1]))
+        self.assertEqual(config, base.ScenarioRunnerResult(config))
 
     def test_validate_failed(self):
-        config = {"a": 10}
+        config = [{"a": 10}]
         self.assertRaises(jsonschema.ValidationError,
                           base.ScenarioRunnerResult, config)
 
@@ -221,18 +204,16 @@ class ScenarioRunnerTestCase(test.TestCase):
                 config,
                 serial.SerialScenarioRunner.CONFIG_SCHEMA)
 
-    @mock.patch("rally.benchmark.runners.base.osclients")
     @mock.patch("rally.benchmark.runners.base.base_ctx.ContextManager")
-    def test_run(self, mock_ctx_manager, mock_osclients):
-        runner = constant.ConstantScenarioRunner(
-            mock.MagicMock(),
-            self.fake_endpoints,
-            mock.MagicMock())
+    def test_run(self, mock_ctx_manager):
+        runner = constant.ConstantScenarioRunner(mock.MagicMock(),
+                                                 self.fake_endpoints,
+                                                 mock.MagicMock())
+        mock_ctx_manager.run.return_value = base.ScenarioRunnerResult([])
         scenario_name = "NovaServers.boot_server_from_volume_and_delete"
-        config_kwargs = {"image": {"id": 1}, "flavor": {"id": 1}}
-        runner.run(scenario_name, {"some_ctx": 2}, config_kwargs)
+        result = runner.run(scenario_name, {"some_ctx": 2}, [1, 2, 3])
 
-        self.assertEqual(list(runner.result_queue), [])
+        self.assertEqual(result, mock_ctx_manager.run.return_value)
 
         cls_name, method_name = scenario_name.split(".", 1)
         cls = base_scenario.Scenario.get_by_name(cls_name)
@@ -246,15 +227,16 @@ class ScenarioRunnerTestCase(test.TestCase):
             }
         }
 
-        expected = [context_obj, runner._run_scenario, cls,
-                    method_name, config_kwargs]
+        expected = [context_obj, runner._run_scenario, cls, method_name,
+                    context_obj, [1, 2, 3]]
         mock_ctx_manager.run.assert_called_once_with(*expected)
 
-    def test_runner_send_result_exception(self):
-        runner = constant.ConstantScenarioRunner(
-            mock.MagicMock(),
-            self.fake_endpoints,
-            mock.MagicMock())
-        self.assertRaises(
-            jsonschema.ValidationError,
-            lambda: runner._send_result(mock.MagicMock()))
+    @mock.patch("rally.benchmark.runners.base.base_ctx.ContextManager")
+    def test_run_scenario_runner_results_exception(self, mock_ctx_manager):
+        srunner_cls = constant.ConstantForDurationScenarioRunner
+        srunner = srunner_cls(mock.MagicMock(), self.fake_endpoints,
+                              mock.MagicMock())
+        self.assertRaises(exceptions.InvalidRunnerResult,
+                          srunner.run,
+                          "NovaServers.boot_server_from_volume_and_delete",
+                          mock.MagicMock(), {})

@@ -14,9 +14,8 @@
 #    under the License.
 
 import os
-import time
-
 from oslo.config import cfg
+import time
 
 from rally.benchmark.scenarios import base
 from rally.benchmark.scenarios import utils as scenario_utils
@@ -82,27 +81,26 @@ class GlanceScenario(base.Scenario):
 
         kw.update(kwargs)
 
-        try:
-            if os.path.isfile(image_location):
-                kw["data"] = open(image_location)
-            else:
-                kw["copy_from"] = image_location
+        if os.path.isfile(image_location):
+            #TODO(chen): around that live with open()
+            # probably can cause issue with too many open fd
+            kw["data"] = open(image_location)
+        else:
+            kw["copy_from"] = image_location
 
-            image = self.clients("glance").images.create(**kw)
+        image = self.clients("glance").images.create(**kw)
 
-            time.sleep(CONF.benchmark.glance_image_create_prepoll_delay)
+        time.sleep(CONF.benchmark.glance_image_create_prepoll_delay)
 
-            image = bench_utils.wait_for(
-                image,
-                is_ready=bench_utils.resource_is("active"),
-                update_resource=bench_utils.get_from_manager(),
-                timeout=CONF.benchmark.glance_image_create_timeout,
-                check_interval=CONF.benchmark.
-                glance_image_create_poll_interval)
+        image = bench_utils.wait_for(
+            image,
+            is_ready=bench_utils.resource_is("active"),
+            update_resource=bench_utils.get_from_manager(),
+            timeout=CONF.benchmark.glance_image_create_timeout,
+            check_interval=CONF.benchmark.glance_image_create_poll_interval)
 
-        finally:
-            if "data" in kw:
-                kw["data"].close()
+        if "data" in kw:
+            kw["data"].close()
 
         return image
 

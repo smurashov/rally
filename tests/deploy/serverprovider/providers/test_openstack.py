@@ -16,6 +16,7 @@
 """Tests for OpenStack VM provider."""
 
 import jsonschema
+
 import mock
 from oslotest import mockpatch
 
