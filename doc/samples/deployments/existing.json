@@ -1,9 +1,9 @@
 {
     "type": "ExistingCloud",
     "endpoint": {
-        "auth_url": "http://example.net:5000/v2.0/",
+        "auth_url": "http://localhost:5000/v2.0/",
         "username": "admin",
-        "password": "myadminpass",
-        "tenant_name": "demo"
+        "password": "111",
+        "tenant_name": "admin"
     }
 }

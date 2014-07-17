@@ -20,6 +20,9 @@ from rally.benchmark import utils as bench_utils
 
 LOG = logging.getLogger(__name__)
 
+def delete_murano_environments(murano):
+    for environment in murano.environments.list():
+        murano.environments.delete(environment.id)
 
 def delete_cinder_resources(cinder):
     delete_volume_transfers(cinder)

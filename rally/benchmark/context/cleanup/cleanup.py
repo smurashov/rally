@@ -68,7 +68,8 @@ class ResourceCleaner(base.Context):
                 "neutron": (utils.delete_neutron_resources, clients.neutron,
                             tenant_id),
                 "ceilometer": (utils.delete_ceilometer_resources,
-                               clients.ceilometer, tenant_id)
+                               clients.ceilometer, tenant_id),
+                "murano": (utils.delete_murano_environments, clients.murano)
             }
 
             for service_name in self.config:
