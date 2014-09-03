@@ -33,7 +33,7 @@ class MuranoEnvironments(utils.MuranoScenario):
         self._wait_finish_of_deploy(environment)
 
         deployment = self._get_deployments_list(environment.id)[-1]
-        if deployment.state != 'success':
-            raise rally_exceptions.TestException("Deployment failed")
+        print deployment.state
+        assert deployment.state == 'success'
 
         self._delete_environment(environment.id)

@@ -54,26 +54,17 @@ class NeutronNetwork(base.Context):
     @classmethod
     def _network_remove(cls, neutron, tenant_id):
         router_name = cls.PATTERN_ROUTER % {"tenant": tenant_id}
-        network_name = cls.PATTERN_NETWORK % {"tenant": tenant_id}
 
         # Get dictionaries of elements.
         router = neutron.list_routers(name=router_name)["routers"][0]
-        network = neutron.list_networks(name=network_name)["networks"][0]
-        subnet = neutron.list_subnets(network_id=network["id"])["subnets"][0]
 
-        # Remove elements.
         neutron.remove_gateway_router(router["id"])
-        neutron.remove_interface_router(router["id"],
-                                        {"subnet_id": subnet["id"]})
         neutron.delete_router(router["id"])
-        neutron.delete_subnet(subnet["id"])
-        neutron.delete_network(network["id"])
 
     @classmethod
     def _generate_network(cls, neutron, args):
         tenant_id, network_ip_version, network_cidr = args
         router_name = cls.PATTERN_ROUTER % {"tenant": tenant_id}
-        network_name = cls.PATTERN_NETWORK % {"tenant": tenant_id}
 
         # Find the external network.
         for network in neutron.list_networks()["networks"]:
@@ -87,29 +78,6 @@ class NeutronNetwork(base.Context):
                                   "external_gateway_info": gw_info,
                                   "tenant_id": tenant_id}}
         neutron.create_router(router_info)
-
-        # Create internal network.
-        internal_network = {"network": {"name": network_name,
-                                        "tenant_id": tenant_id}}
-        neutron.create_network(internal_network)
-
-        # Get dictionary of new elements.
-        network = neutron.list_networks(name=network_name)["networks"][0]
-        router = neutron.list_routers(name=router_name)["routers"][0]
-
-        # Create subnet for internal network.
-        subnet = {"subnet": {"network_id": network["id"],
-                             "ip_version": network_ip_version,
-                             "cidr": network_cidr,
-                             "tenant_id": tenant_id}}
-        neutron.create_subnet(subnet)
-
-        # Get subnet dictionary.
-        subnet = neutron.list_subnets(network_id=network["id"])["subnets"][0]
-
-        # Add subnet to the router.
-        neutron.add_interface_router(router["id"],
-                                     {"subnet_id": subnet["id"]})
 
     @utils.log_task_wrapper(LOG.info, _("Enter context: `neutron_network`"))
     def setup(self):
@@ -128,7 +96,8 @@ class NeutronNetwork(base.Context):
     def cleanup(self):
         admin_endpoint = self.context["admin"]["endpoint"]
         neutron_client = osclients.Clients(admin_endpoint).neutron()
-
+        import time
+        time.sleep(240)
         for tenant in self.context["tenants"]:
             try:
                 self._network_remove(neutron_client, tenant["id"])
