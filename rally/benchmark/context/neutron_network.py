@@ -96,8 +96,6 @@ class NeutronNetwork(base.Context):
     def cleanup(self):
         admin_endpoint = self.context["admin"]["endpoint"]
         neutron_client = osclients.Clients(admin_endpoint).neutron()
-        import time
-        time.sleep(240)
         for tenant in self.context["tenants"]:
             try:
                 self._network_remove(neutron_client, tenant["id"])

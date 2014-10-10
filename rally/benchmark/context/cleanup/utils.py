@@ -14,15 +14,26 @@
 #    under the License.
 
 import logging
+import time
 
 from rally.benchmark.scenarios.keystone import utils as kutils
 from rally.benchmark import utils as bench_utils
 
 LOG = logging.getLogger(__name__)
 
+
 def delete_murano_environments(murano):
+    print "OK"
     for environment in murano.environments.list():
         murano.environments.delete(environment.id)
+        start_time = time.time()
+        while time.time() - start_time < 180:
+            try:
+                murano.environments.get(environment.id)
+                time.sleep(1)
+            except Exception:
+                break
+
 
 def delete_cinder_resources(cinder):
     delete_volume_transfers(cinder)

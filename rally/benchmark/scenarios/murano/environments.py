@@ -15,7 +15,6 @@ class MuranoEnvironments(utils.MuranoScenario):
     def get_list_environments(self):
         self._list_environments()
 
-
     @base.scenario(context={"cleanup": ["murano"]})
     def create_environment_create_session_delete_environment(self):
         environment = self._create_environment(self._generate_random_name())
@@ -33,7 +32,8 @@ class MuranoEnvironments(utils.MuranoScenario):
         self._wait_finish_of_deploy(environment)
 
         deployment = self._get_deployments_list(environment.id)[-1]
-        print deployment.state
         assert deployment.state == 'success'
+        ip = environment.services[-1]['instance']['floatingIpAddress']
+        self._check_port_access(ip, 23)
 
         self._delete_environment(environment.id)

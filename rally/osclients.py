@@ -220,6 +220,7 @@ class Clients(object):
 
     @memoize('murano')
     def murano(self, version='1'):
+        print self.endpoint.auth_url
         kc = self.keystone()
         auth_token = kc.auth_token
         murano_url = 'http://localhost:8082'
